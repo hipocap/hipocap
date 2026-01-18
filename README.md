@@ -6,7 +6,7 @@
 
 <p align="center">
   <picture>
-    <img alt="HipoCap logo" src="./images/logo.png" width="180" height="180">
+    <img alt="HipoCap logo" src="./images/logo.png" width="180" height="190">
   </picture>
 </p>
 
