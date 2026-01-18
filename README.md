@@ -1,16 +1,16 @@
 <p align="center">
+  <picture>
+    <img alt="HipoCap logo" src="./images/logo.png" width="180" height="190">
+  </picture>
+  <br>
+  <strong>HipoCap</strong>
+</p>
+
+<p align="center">
   <a href="https://x.com/hipocap">
     <img alt="X (formerly Twitter) Follow" src="https://img.shields.io/twitter/follow/hipocap" />
   </a>
 </p>
-
-<p align="center">
-  <picture>
-    <img alt="HipoCap logo" src="./images/logo.png" width="180" height="190">
-  </picture>
-</p>
-
-# HipoCap
 
 [HipoCap](https://hipocap.com) is an AI security and observability platform that protects your LLM applications from prompt injection attacks while providing comprehensive observability.
 
