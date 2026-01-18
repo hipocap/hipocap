@@ -119,7 +119,7 @@ cp .env.example .env
 ### Step 3: Start Services
 
 ```bash
-docker compose -f docker-compose-local-dev.yml up -d
+docker compose -f docker-compose.yml up -d
 ```
 
 This starts all services:
