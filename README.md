@@ -1,7 +1,7 @@
 <a href="https://x.com/hipocap">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/hipocap)</a>
 
 <picture>
-  <img alt="HipoCap logo" src="./images/logo.png">
+  <img alt="HipoCap logo" src="./images/logo.png" width="50" height="50">
 </picture>
 
 # HipoCap
