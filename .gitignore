@@ -1,0 +1,25 @@
+**/.env.local
+**/.env
+.DS_Store
+**/..DS_Store
+.idea
+target/
+
+# Python cache files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Hipocap server specific
+hipocap_server/__pycache__/
+hipocap_server/database/__pycache__/
+hipocap_server/tasks/__pycache__/
+hipocap_server/utils/__pycache__/
+hipocap_server/**/__pycache__/
+hipocap_server/models/__pycache__/
+hipocap_server/middleware/__pycache__/
+hipocap_server/migrations/__pycache__/
+hipocap_server/tests/__pycache__/

@@ -1,0 +1,37 @@
+import { ColumnDef, RowData } from "@tanstack/react-table";
+
+import { Checkbox } from "@/components/ui/checkbox.tsx";
+
+import { CheckboxColumnOptions } from "./model/types.ts";
+
+export const EMPTY_ARRAY: RowData[] = [];
+
+export function createCheckboxColumn<TData extends RowData>(options?: CheckboxColumnOptions): ColumnDef<TData> {
+  return {
+    id: "__row_selection",
+    enableResizing: false,
+    size: 52,
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllRowsSelected()}
+        onCheckedChange={(checked) => {
+          table.toggleAllRowsSelected(!!checked);
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(checked) => {
+          row.toggleSelected(!!checked);
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      />
+    ),
+  };
+}

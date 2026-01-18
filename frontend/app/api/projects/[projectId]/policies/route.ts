@@ -1,0 +1,124 @@
+import { NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
+import { prettifyError, ZodError } from "zod/v4";
+
+import { authOptions } from "@/lib/auth";
+
+const HIPOCAP_SERVER_URL = process.env.HIPOCAP_SERVER_URL || "http://localhost:8006";
+
+function getLmnrHeaders(session: any): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  // Forward LMNR session information as headers
+  if (session?.user) {
+    if (session.user.id) {
+      headers["X-LMNR-User-Id"] = session.user.id;
+    }
+    if (session.user.email) {
+      headers["X-LMNR-User-Email"] = session.user.email;
+    }
+    if (session.user.name) {
+      headers["X-LMNR-User-Name"] = session.user.name;
+    }
+  }
+
+  // Optionally include API key if available (can be added later via user settings)
+  // For now, API key is optional - middleware will work with just user headers
+  const apiKey = process.env.HIPOCAP_API_KEY;
+  if (apiKey) {
+    headers["X-LMNR-API-Key"] = apiKey;
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+
+  return headers;
+}
+
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  }
+
+  try {
+    const headers = getLmnrHeaders(session);
+
+    const ownerOnly = req.nextUrl.searchParams.get("owner_only") === "true";
+    const url = `${HIPOCAP_SERVER_URL}/api/v1/policies${ownerOnly ? "?owner_only=true" : ""}`;
+
+    const res = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      throw new Error(`Hipocap API error: ${error}`);
+    }
+
+    const data = await res.json();
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Error fetching policies:", error);
+    if (error instanceof ZodError) {
+      return new Response(prettifyError(error), { status: 400 });
+    }
+    if (error instanceof Error) {
+      return new Response(error.message, { status: 500 });
+    }
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}
+
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const headers = getLmnrHeaders(session);
+
+    const url = `${HIPOCAP_SERVER_URL}/api/v1/policies`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      throw new Error(`Hipocap API error: ${error}`);
+    }
+
+    const data = await res.json();
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Error creating policy:", error);
+    if (error instanceof ZodError) {
+      return new Response(prettifyError(error), { status: 400 });
+    }
+    if (error instanceof Error) {
+      return new Response(error.message, { status: 500 });
+    }
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}
+

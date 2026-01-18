@@ -1,0 +1,529 @@
+import { isEmpty, get } from "lodash";
+
+import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { SpanType } from "@/lib/traces/types.ts";
+import { getDuration } from "@/lib/utils";
+import { hasHipocapAnalysis, extractHipocapAnalysis } from "@/components/traces/trace-view/utils.ts";
+
+export interface TreeSpan {
+  span: TraceViewSpan;
+  depth: number;
+  yOffset: number;
+  parentY: number;
+  pending: boolean;
+}
+
+export interface SegmentEvent {
+  id: string;
+  name: string;
+  left: number;
+  attributes?: Record<string, any>;
+}
+
+interface TimelineSpan {
+  left: number;
+  width: number;
+  span: TraceViewSpan;
+  events: SegmentEvent[];
+}
+
+export interface TimelineData {
+  spans: TimelineSpan[];
+  startTime: number;
+  timeIntervals: string[];
+  timelineWidthInMilliseconds: number;
+}
+
+export interface MinimapSpan extends TreeSpan {
+  y: number;
+  height: number;
+  status?: string;
+  spanType: SpanType;
+  spanId: string;
+}
+
+export const getChildSpansMap = <T extends TraceViewSpan>(spans: T[]): { [key: string]: T[] } => {
+  const childSpans = {} as { [key: string]: T[] };
+
+  for (const span of spans) {
+    if (span.parentSpanId) {
+      if (!childSpans[span.parentSpanId]) {
+        childSpans[span.parentSpanId] = [];
+      }
+      childSpans[span.parentSpanId].push(span);
+    }
+  }
+
+  return childSpans;
+};
+
+/**
+ * Creates virtual child spans for function attempts from Hipocap events
+ */
+const createFunctionAttemptSpans = (span: TraceViewSpan): TraceViewSpan[] => {
+  const functionAttempts = span.attributes?.["hipocap.function_attempts"] as string[] | undefined;
+  const eventData = span.attributes?.["hipocap.event_data"] as Record<string, any> | undefined;
+  
+  if (!functionAttempts || functionAttempts.length === 0) {
+    return [];
+  }
+
+  // Get the first event data (or use defaults)
+  const firstEventData = eventData ? Object.values(eventData)[0] as any : {};
+  const severity = firstEventData?.severity || "unknown";
+  const decision = firstEventData?.decision || "unknown";
+  const reason = firstEventData?.reason || "";
+
+  return functionAttempts.map((functionName, index) => {
+    // Create a unique virtual span ID that won't be confused with real UUIDs
+    // Use a prefix that clearly indicates it's virtual
+    const virtualSpanId = `virtual-${span.spanId}-function-attempt-${index}`;
+    return {
+      ...span,
+      spanId: virtualSpanId,
+      parentSpanId: span.spanId,
+      name: functionName,
+      spanType: "TOOL" as SpanType,
+      attributes: {
+        ...span.attributes,
+        "hipocap.is_function_attempt": true,
+        "hipocap.function_name": functionName,
+        "hipocap.severity": severity,
+        "hipocap.decision": decision,
+        "hipocap.reason": reason,
+        "hipocap.original_span_id": span.spanId,
+      },
+      events: [],
+      collapsed: false,
+    };
+  });
+};
+
+export const transformSpansToTree = (spans: TraceViewSpan[]): TreeSpan[] => {
+  // Create virtual spans for function attempts
+  const virtualSpans: TraceViewSpan[] = [];
+  for (const span of spans) {
+    const functionAttemptSpans = createFunctionAttemptSpans(span);
+    virtualSpans.push(...functionAttemptSpans);
+  }
+
+  // Combine real spans with virtual spans
+  const allSpans = [...spans, ...virtualSpans];
+  
+  const topLevelSpans = allSpans.filter((span) => !span.parentSpanId);
+  const childSpans = getChildSpansMap(allSpans);
+
+  const spanItems: TreeSpan[] = [];
+  const maxY = { current: 0 };
+
+  const buildTreeWithCollapse = (
+    items: TreeSpan[],
+    span: TraceViewSpan,
+    depth: number,
+    maxY: { current: number },
+    parentY: number
+  ) => {
+    const yOffset = maxY.current + 36;
+
+    items.push({
+      span,
+      depth,
+      yOffset,
+      parentY,
+      pending: span.pending || false,
+    });
+
+    maxY.current = maxY.current + 36;
+
+    if (!span.collapsed) {
+      const py = maxY.current;
+      childSpans[span.spanId]?.forEach((child) => buildTreeWithCollapse(items, child, depth + 1, maxY, py));
+    }
+  };
+
+  topLevelSpans.forEach((span) => buildTreeWithCollapse(spanItems, span, 0, maxY, 0));
+  return spanItems;
+};
+
+const traverse = (
+  span: TraceViewSpan,
+  childSpans: { [key: string]: TraceViewSpan[] },
+  orderedSpans: TraceViewSpan[]
+) => {
+  if (!span) return;
+  orderedSpans.push(span);
+
+  if (span.collapsed) return;
+
+  if (childSpans[span.spanId]) {
+    for (const child of childSpans[span.spanId]) {
+      traverse(child, childSpans, orderedSpans);
+    }
+  }
+};
+
+/**
+ * Get effective start and end times for a span
+ * For spans with Hipocap analysis, uses analysis timestamps for timeline positioning
+ * Otherwise uses the span's actual startTime/endTime
+ * Returns timestamps in milliseconds
+ */
+const getEffectiveSpanTimes = (span: TraceViewSpan): { startTime: number; endTime: number } => {
+  // Check if span has Hipocap analysis and extract timestamps
+  if (hasHipocapAnalysis(span)) {
+    const analysis = extractHipocapAnalysis(span);
+    if (analysis) {
+      const timestamps: number[] = [];
+      
+      // Extract timestamps from analysis data (timestamps are in seconds)
+      if (analysis.inputAnalysis?.timestamp) {
+        timestamps.push(Number(analysis.inputAnalysis.timestamp) * 1000); // Convert to milliseconds
+      }
+      if (analysis.llmAnalysis?.timestamp) {
+        timestamps.push(Number(analysis.llmAnalysis.timestamp) * 1000); // Convert to milliseconds
+      }
+      
+      // If we have analysis timestamps, use them for timeline positioning
+      if (timestamps.length > 0) {
+        const minTimestamp = Math.min(...timestamps);
+        const maxTimestamp = Math.max(...timestamps);
+        
+        // Use analysis timestamps for timeline positioning
+        // If we only have one timestamp, use it as both start and end
+        return {
+          startTime: minTimestamp,
+          endTime: maxTimestamp > minTimestamp ? maxTimestamp : minTimestamp + 100, // Ensure minimum width
+        };
+      }
+    }
+  }
+  
+  // Fall back to span's actual startTime/endTime
+  return {
+    startTime: new Date(span.startTime).getTime(),
+    endTime: new Date(span.endTime).getTime(),
+  };
+};
+
+export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData => {
+  if (spans.length === 0) {
+    return {
+      spans: [],
+      startTime: 0,
+      timeIntervals: [],
+      timelineWidthInMilliseconds: 0,
+    };
+  }
+
+  const childSpans = getChildSpansMap(spans);
+
+  // Traverse function to get ordered spans respecting collapsed state
+  const traverse = (
+    span: TraceViewSpan,
+    childSpans: { [key: string]: TraceViewSpan[] },
+    orderedSpans: TraceViewSpan[]
+  ) => {
+    if (!span) return;
+    orderedSpans.push(span);
+
+    if (span.collapsed) return;
+
+    if (childSpans[span.spanId]) {
+      for (const child of childSpans[span.spanId]) {
+        traverse(child, childSpans, orderedSpans);
+      }
+    }
+  };
+
+  const orderedSpans: TraceViewSpan[] = [];
+  const topLevelSpans = spans.filter((span) => !span.parentSpanId);
+
+  for (const span of topLevelSpans) {
+    traverse(span, childSpans, orderedSpans);
+  }
+
+  if (orderedSpans.length === 0) {
+    return {
+      spans: [],
+      startTime: 0,
+      timeIntervals: [],
+      timelineWidthInMilliseconds: 0,
+    };
+  }
+
+  let startTime = Infinity;
+  let endTime = -Infinity;
+
+  // Calculate timeline range using span's actual startTime/endTime
+  for (const span of orderedSpans) {
+    const effectiveTimes = getEffectiveSpanTimes(span);
+    startTime = Math.min(startTime, effectiveTimes.startTime);
+    endTime = Math.max(endTime, effectiveTimes.endTime);
+  }
+
+  const totalDuration = endTime - startTime;
+  const upperIntervalInSeconds = Math.ceil(totalDuration / 1000);
+  const unit = upperIntervalInSeconds / 10;
+
+  const timeIntervals = [];
+  for (let i = 0; i < 10; i++) {
+    timeIntervals.push((i * unit).toFixed(2) + "s");
+  }
+
+  const upperIntervalInMilliseconds = upperIntervalInSeconds * 1000;
+  const segments: TimelineSpan[] = [];
+
+  for (const span of orderedSpans) {
+    // Use span's actual startTime/endTime for timeline positioning
+    const effectiveTimes = getEffectiveSpanTimes(span);
+    const spanDuration = effectiveTimes.endTime - effectiveTimes.startTime;
+    const width = (spanDuration / upperIntervalInMilliseconds) * 100;
+    const left = ((effectiveTimes.startTime - startTime) / upperIntervalInMilliseconds) * 100;
+
+    const segmentEvents = [] as SegmentEvent[];
+    
+    // For Hipocap analysis spans, we need to get the analysis timestamps for event positioning
+    let analysisStartTime: number | null = null;
+    if (hasHipocapAnalysis(span)) {
+      const analysis = extractHipocapAnalysis(span);
+      if (analysis) {
+        const timestamps: number[] = [];
+        if (analysis.inputAnalysis?.timestamp) {
+          timestamps.push(Number(analysis.inputAnalysis.timestamp) * 1000);
+        }
+        if (analysis.llmAnalysis?.timestamp) {
+          timestamps.push(Number(analysis.llmAnalysis.timestamp) * 1000);
+        }
+        if (timestamps.length > 0) {
+          analysisStartTime = Math.min(...timestamps);
+        }
+      }
+    }
+    
+    for (const event of span.events) {
+      // For Hipocap analysis events, position relative to analysis start time if available
+      // Otherwise use the span's effective start time
+      const eventTimestamp = new Date(event.timestamp).getTime();
+      const referenceStartTime = analysisStartTime !== null ? analysisStartTime : effectiveTimes.startTime;
+      
+      const eventLeft =
+        ((eventTimestamp - referenceStartTime) / upperIntervalInMilliseconds) * 100;
+
+      segmentEvents.push({
+        id: event.id,
+        name: event.name,
+        left: eventLeft,
+        attributes: event.attributes,
+      });
+    }
+
+    segments.push({
+      left,
+      width,
+      span,
+      events: segmentEvents,
+    });
+  }
+
+  return {
+    spans: segments,
+    startTime,
+    timeIntervals,
+    timelineWidthInMilliseconds: upperIntervalInMilliseconds,
+  };
+};
+
+const getMinimapPixelsPerSecond = (traceDuration: number): number => {
+  if (!traceDuration || traceDuration <= 0) return 4;
+
+  const durationInSeconds = traceDuration / 1000;
+
+  if (durationInSeconds <= 30) {
+    return 16;
+  } else if (durationInSeconds <= 120) {
+    return 12;
+  } else if (durationInSeconds <= 300) {
+    return 4;
+  } else {
+    return 3;
+  }
+};
+
+export const transformSpansToMinimap = (spans: TraceViewSpan[], traceDuration: number): MinimapSpan[] => {
+  const spanItems = transformSpansToTree(spans);
+  const pixelsPerSecond = getMinimapPixelsPerSecond(traceDuration);
+
+  if (isEmpty(spanItems)) return [];
+
+  const minTime = Math.min(...spanItems.map((s) => new Date(s.span.startTime).getTime()));
+  const MIN_H = 1;
+
+  return spanItems.map((s) => {
+    const startTime = new Date(s.span.startTime).getTime();
+    const endTime = new Date(s.span.endTime).getTime();
+    const spanDuration = (endTime - startTime) / 1000; // Convert to seconds
+    const relativeStart = (startTime - minTime) / 1000; // Convert to seconds
+
+    return {
+      ...s,
+      y: relativeStart * pixelsPerSecond,
+      height: Math.max(MIN_H, spanDuration * pixelsPerSecond),
+      status: s.span.attributes?.status,
+      spanType: s.span.spanType,
+      spanId: s.span.spanId,
+    };
+  });
+};
+
+export const transformSpansToFlatMinimap = (spans: TraceViewSpan[], traceDuration: number): MinimapSpan[] => {
+  const pixelsPerSecond = getMinimapPixelsPerSecond(traceDuration);
+
+  if (isEmpty(spans)) return [];
+
+  const minTime = Math.min(...spans.map((s) => new Date(s.startTime).getTime()));
+  const MIN_H = 1;
+
+  return spans.map((span) => {
+    const startTime = new Date(span.startTime).getTime();
+    const endTime = new Date(span.endTime).getTime();
+    const spanDuration = (endTime - startTime) / 1000;
+    const relativeStart = (startTime - minTime) / 1000;
+
+    return {
+      span,
+      depth: 0,
+      yOffset: 0,
+      parentY: 0,
+      pending: span.pending || false,
+      y: relativeStart * pixelsPerSecond,
+      height: Math.max(MIN_H, spanDuration * pixelsPerSecond),
+      status: span.attributes?.status,
+      spanType: span.spanType,
+      spanId: span.spanId,
+    };
+  });
+};
+
+export const groupIntoSections = (listSpans: TraceViewSpan[]): TraceViewSpan[][] => listSpans.reduce<TraceViewSpan[][]>((sections, span) => {
+  const lastSection = sections[sections.length - 1];
+
+  if (span.spanType === "LLM" && lastSection && lastSection.length > 0) {
+    sections.push([span]);
+  } else {
+    if (!lastSection) {
+      sections.push([span]);
+    } else {
+      lastSection.push(span);
+    }
+  }
+  return sections;
+}, []);
+
+const buildParentChainRecursive = (
+  spanId: string,
+  spanMap: Map<string, Pick<TraceViewSpan, 'spanId' | 'name' | 'parentSpanId'>>,
+  chain: string[] = []
+): string[] => {
+  const span = spanMap.get(spanId);
+  if (!span?.parentSpanId) {
+    return chain;
+  }
+
+  const parentSpan = spanMap.get(span.parentSpanId);
+  if (!parentSpan) {
+    return chain;
+  }
+
+  return buildParentChainRecursive(parentSpan.spanId, spanMap, [parentSpan.spanId, ...chain]);
+};
+
+/**
+ * Calculate occurrence counts [2], [3] for duplicate names within sections
+ * Returns a Map of spanId -> structured data with name and optional count
+ */
+export const buildSpanNameMap = (
+  sections: TraceViewSpan[][],
+  spanMap: Map<string, Pick<TraceViewSpan, 'spanId' | 'name' | 'parentSpanId'>>
+): Map<string, { name: string; count?: number }> => {
+  const map = new Map<string, { name: string; count?: number }>();
+
+  sections.forEach((section) => {
+    const parentChains: string[][] = section.map((listSpan) => {
+      const chain = [listSpan.spanId];
+      const parentChain = buildParentChainRecursive(listSpan.spanId, spanMap);
+      return [...parentChain, ...chain];
+    });
+
+    const commonParentIndex =
+      parentChains.length > 0
+        ? parentChains[0].reduce((maxIndex, spanId, i) => parentChains.every((chain) => chain[i] === spanId) ? i : maxIndex, 0)
+        : 0;
+
+    const spansInContext = new Set<string>(parentChains.flatMap((chain) => chain.slice(commonParentIndex)));
+
+    const nameCounter = new Map<string, number>();
+    const sortedSpans = Array.from(spansInContext)
+      .map((id) => spanMap.get(id))
+      .filter((span): span is Pick<TraceViewSpan, 'spanId' | 'name' | 'parentSpanId'> => span !== undefined);
+
+    sortedSpans.forEach((span) => {
+      const name = span.name;
+      const currentCount = nameCounter.get(name) || 0;
+      const count = currentCount + 1;
+      nameCounter.set(name, count);
+
+      map.set(span.spanId, count > 1 ? { name, count } : { name });
+    });
+  });
+
+  return map;
+};
+
+export const buildParentChain = (
+  span: TraceViewSpan,
+  spanMap: Map<string, Pick<TraceViewSpan, 'spanId' | 'name' | 'parentSpanId'>>
+): Array<{ spanId: string; name: string }> => {
+  const parentChainIds = buildParentChainRecursive(span.spanId, spanMap);
+
+  return parentChainIds
+    .map((spanId) => {
+      const parentSpan = spanMap.get(spanId);
+      return parentSpan ? { spanId: parentSpan.spanId, name: parentSpan.name } : null;
+    })
+    .filter((ref): ref is { spanId: string; name: string } => ref !== null);
+};
+
+export const buildPathInfo = (
+  parentChain: Array<{ spanId: string; name: string }>,
+  spanNameMap: Map<string, { name: string; count?: number }>
+): {
+  display: Array<{ spanId: string; name: string; count?: number }>;
+  full: Array<{ spanId: string; name: string }>;
+} | null => {
+  if (parentChain.length === 0) {
+    return null;
+  }
+
+  const enrichedParents = parentChain.map((ref) => {
+    const spanInfo = spanNameMap.get(ref.spanId);
+    return {
+      spanId: ref.spanId,
+      name: spanInfo?.name || ref.name,
+      count: spanInfo?.count,
+    };
+  });
+
+  const displayPath =
+    enrichedParents.length <= 3
+      ? enrichedParents
+      : [
+        { spanId: "...", name: "..." },
+        enrichedParents[enrichedParents.length - 2],
+        enrichedParents[enrichedParents.length - 1],
+      ];
+
+  return {
+    display: displayPath,
+    full: parentChain,
+  };
+};

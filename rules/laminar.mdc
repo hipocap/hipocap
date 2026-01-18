@@ -1,0 +1,876 @@
+---
+description: Use it when user asks about adding instrumentation with HipoCap, creating an eval with HipoCap or migrating from Langfuse/Laminar to HipoCap instrumentation.
+globs: 
+alwaysApply: false
+---
+# HipoCap AI Security and Observability Platform - Cursor Rules
+
+## Overview
+HipoCap is an AI security and observability platform that protects your LLM applications from prompt injection attacks while providing comprehensive observability. It provides comprehensive LLM tracing based on OpenTelemetry, powerful evaluation tools, and multi-stage security analysis.
+
+### Always Follow These Patterns:
+- Analyze the project structure and initialize HipoCap once at application entry point with `Hipocap.initialize()`
+- Use environment variables for API keys (`HIPOCAP_API_KEY`)
+- Prefer automatic instrumentation over manual when possible
+- Use `@observe()` decorator for custom function tracing in Python
+- Use `observe()` wrapper for custom function tracing in JavaScript/TypeScript
+- Call `Hipocap.shutdown()` in JavaScript/TypeScript before process exit if it is a single script
+- Group related spans into traces using parent spans
+- Use sessions to group related traces for user interactions
+- If needed add user IDs and metadata for comprehensive tracking
+- Use security analysis features (`client.analyze()`) to protect against prompt injection attacks
+
+## Installation & Setup
+
+### JavaScript/TypeScript
+```bash
+npm add hipocap
+```
+
+### Python
+```bash
+pip install 'hipocap[all]'
+```
+
+## Environment Variables
+```bash
+HIPOCAP_API_KEY=your_project_api_key_here
+HIPOCAP_USER_ID=your_user_id_here
+HIPOCAP_SERVER_URL=http://localhost:8006  # Optional, for self-hosted security server
+```
+
+## Initialization Patterns
+
+### JavaScript/TypeScript - Standard Setup
+```javascript
+import { Hipocap } from 'hipocap';
+
+Hipocap.initialize({
+  projectApiKey: process.env.HIPOCAP_API_KEY,
+  baseUrl: "http://localhost",      // Observability server
+  httpPort: 8000,
+  grpcPort: 8001,
+  hipocapBaseUrl: "http://localhost:8006",  // Security server
+  hipocapUserId: process.env.HIPOCAP_USER_ID
+});
+
+// At application exit if a single script
+await Hipocap.shutdown();
+```
+
+### Next.js Setup - instrumentation.ts
+```javascript
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { Hipocap } = await import('hipocap');
+    Hipocap.initialize({
+      projectApiKey: process.env.HIPOCAP_API_KEY,
+      baseUrl: process.env.HIPOCAP_OBS_BASE_URL || "http://localhost",
+      httpPort: parseInt(process.env.HIPOCAP_OBS_HTTP_PORT || "8000"),
+      grpcPort: parseInt(process.env.HIPOCAP_OBS_GRPC_PORT || "8001"),
+      hipocapBaseUrl: process.env.HIPOCAP_SERVER_URL || "http://localhost:8006",
+      hipocapUserId: process.env.HIPOCAP_USER_ID
+    });
+  }
+}
+```
+
+### Next.js Configuration - next.config.ts
+```javascript
+const nextConfig = {
+  experimental: {
+    serverExternalPackages: ['hipocap']
+  }
+};
+module.exports = nextConfig;
+```
+
+### Python Setup
+```python
+from hipocap import Hipocap
+import os
+
+Hipocap.initialize(
+    project_api_key=os.environ["HIPOCAP_API_KEY"],
+    base_url="http://localhost",      # Observability server
+    http_port=8000,
+    grpc_port=8001,
+    hipocap_base_url="http://localhost:8006",  # Security server
+    hipocap_user_id=os.environ.get("HIPOCAP_USER_ID")
+)
+```
+
+### Self-Hosted Configuration
+```javascript
+// JavaScript/TypeScript
+Hipocap.initialize({
+  projectApiKey: process.env.HIPOCAP_API_KEY,
+  baseUrl: "http://localhost",
+  httpPort: 8000,
+  grpcPort: 8001,
+  hipocapBaseUrl: "http://localhost:8006",
+  hipocapUserId: process.env.HIPOCAP_USER_ID
+});
+```
+
+## Instrumentation and Manual Span Creation
+
+### Automatic Instrumentation
+HipoCap automatically instruments these libraries when initialized:
+- OpenAI, Anthropic, Google Gemini, Mistral, Groq
+- LangChain, LlamaIndex
+- Browser Use, Stagehand, Playwright
+- Vector databases (Pinecone, Chroma, Qdrant, Weaviate)
+
+### Manual Function Tracing with @observe
+
+#### Python with @observe decorator
+```python
+from hipocap import observe
+
+@observe()
+def my_ai_function(prompt):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
+
+@observe(name="custom_function_name")
+def custom_function(data):
+    return process_data(data)
+```
+
+#### JavaScript with observe wrapper
+```javascript
+import { observe } from 'hipocap';
+
+const myAiFunction = observe(
+  { name: 'myAiFunction' },
+  async (prompt) => {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }]
+    });
+    return response.choices[0].message.content;
+  }
+);
+```
+
+### Manual Span Creation
+
+#### Python Manual Spans
+```python
+from hipocap import Hipocap
+
+# Context manager (recommended)
+with Hipocap.start_as_current_span(
+    name="my_custom_span",
+    input={"user_query": "example input"},
+    span_type="DEFAULT"
+) as span:
+    result = process_data()
+    Hipocap.set_span_output(result)
+
+# Manual span management
+span = Hipocap.start_span(
+    name="manual_span",
+    input={"data": "input_data"},
+    span_type="LLM"
+)
+try:
+    output = perform_operation()
+    Hipocap.set_span_output(output)
+    span.set_attributes({"custom.metric": 42})
+finally:
+    span.end()
+```
+
+#### JavaScript Manual Spans  
+```javascript
+import { Hipocap } from 'hipocap';
+
+// Async context (recommended)
+await Hipocap.withSpan(
+  {
+    name: "my_custom_span",
+    input: { userQuery: "example input" },
+    spanType: "DEFAULT"
+  },
+  async (span) => {
+    const result = await processData();
+    Hipocap.setSpanOutput(result);
+    return result;
+  }
+);
+```
+
+## Security Analysis Integration
+
+### Python Security Analysis
+```python
+from hipocap import Hipocap, observe
+from openai import OpenAI
+
+# Initialize HipoCap (returns the security client)
+client = Hipocap.initialize(
+    project_api_key=os.environ.get("HIPOCAP_API_KEY"),
+    base_url="http://localhost",
+    http_port=8000,
+    grpc_port=8001,
+    hipocap_base_url="http://localhost:8006",
+    hipocap_user_id=os.environ.get("HIPOCAP_USER_ID")
+)
+
+@observe()
+def get_user_data(user_id: str):
+    """Retrieve user data - automatically traced."""
+    return {"user_id": user_id, "email": f"user{user_id}@example.com"}
+
+@observe()
+def process_user_request():
+    user_query = "What's my email?"
+    user_id = "123"
+    
+    # Execute function
+    user_data = get_user_data(user_id)
+    
+    # Analyze function result for security threats
+    result = client.analyze(
+        function_name="get_user_data",
+        function_result=user_data,
+        function_args={"user_id": user_id},
+        user_query=user_query,
+        user_role="user",
+        input_analysis=True,  # Stage 1: Prompt Guard
+        llm_analysis=True,   # Stage 2: LLM Analysis
+        policy_key="default"
+    )
+    
+    # Only return data if safe to use
+    if not result.get("safe_to_use"):
+        return {"error": "Blocked by security policy", "reason": result.get("reason")}
+    
+    return user_data
+```
+
+## Session Management and User ID Tracking
+
+### Python Session Management
+```python
+from hipocap import Hipocap, observe
+
+# Set session globally
+Hipocap.set_session(session_id="session_123")
+
+@observe()
+def process_user_request(user_id, request_data):
+    result = handle_request(request_data)
+    return result
+
+# optionally clear session
+Hipocap.clear_session()
+```
+
+### JavaScript Session Management
+```javascript
+import { Hipocap, observe } from "hipocap";
+
+// Using withSession wrapper
+await Hipocap.withSession(
+  { 
+    sessionId: "session123",
+  }, 
+  async () => {
+    const result = await processUserRequest();
+    return result;
+  }
+);
+
+// Set session ID in the observe wrapper
+await observe(
+  {
+    name: "myFunction",
+    sessionId: "session123"
+  },
+  async () => { ... }
+);
+```
+
+## Trace Metadata Management
+
+**Important**: Metadata is key-value information attached to an entire trace, not individual spans.
+
+### Adding Metadata to Traces
+
+#### JavaScript/TypeScript Metadata Patterns
+```javascript
+import { Hipocap, observe } from 'hipocap';
+
+// Option 1: Using withMetadata wrapper (applies to all traces in scope)
+Hipocap.withMetadata({
+    environment: 'production',
+    featureFlag: 'new-algorithm-v2',
+    region: 'us-west'
+}, () => {
+    // All traces created inside this function will have the metadata
+    ...
+});
+```
+
+#### Python Metadata Patterns
+```python
+from hipocap import Hipocap, observe
+
+# Option 1: Using set_metadata within a span context (MUST be within active span)
+@observe()
+def my_function():
+    # IMPORTANT: set_metadata must be called within an active span context
+    # Here, the @observe decorator creates that context
+    Hipocap.set_metadata({
+        'environment': 'production',
+        'feature_flag': 'new-algorithm-v2',
+        'region': 'us-west'
+    })
+    
+    # rest of the code
+
+# Option 2: Using start_as_current_span
+def process_request():
+    with Hipocap.start_as_current_span(name="process_request") as span:
+        # Now we have an active span context
+        Hipocap.set_metadata({
+            'environment': 'production',
+            'feature_flag': 'new-algorithm-v2'
+        })
+        
+        # rest of the code
+```
+
+#### ❌ Incorrect Python Usage
+```python
+# This won't work because it's outside any span context
+Hipocap.set_metadata({'environment': 'production'})
+
+@observe()
+def my_function():
+    # The metadata set above won't be applied here
+    pass
+```
+
+## Advanced Instrumentation Patterns
+
+### Selective Instrumentation
+```javascript
+import { Hipocap, Instruments } from 'hipocap';
+
+Hipocap.initialize({
+  projectApiKey: process.env.HIPOCAP_API_KEY,
+  instruments: new Set([Instruments.OPENAI, Instruments.ANTHROPIC])
+});
+```
+
+### Dynamic Tracing Control
+```javascript
+import { withTracingLevel, TracingLevel } from "hipocap";
+
+withTracingLevel(TracingLevel.OFF, () => {
+    performSensitiveOperation();
+});
+
+withTracingLevel(TracingLevel.META_ONLY, () => {
+    performOperationWithoutDataCapture();
+});
+```
+
+## Evaluation Integration
+
+### Basic Evaluation Setup
+```javascript
+import { evaluate } from 'hipocap';
+
+const writePoem = (data) => {
+  return `This is a poem about ${data.topic}`;
+};
+
+const containsPoem = (output, target) => {
+  return output.includes(target) ? 1 : 0;
+};
+
+evaluate({
+  data: [{ data: { topic: 'flowers' }, target: 'flowers' }],
+  executor: writePoem,
+  evaluators: { "contains_poem": containsPoem }
+});
+```
+
+## Error Handling & Troubleshooting
+
+### Common Issues
+```javascript
+// Issue: Auto-instrumentation not working
+// Solution: Import modules after HipoCap initialization
+import { Hipocap } from 'hipocap';
+
+Hipocap.initialize({
+  projectApiKey: process.env.HIPOCAP_API_KEY,
+  instrumentModules: {
+    openai: await import('openai')
+  }
+});
+```
+
+### Disable Noisy Spans (Node.js)
+```bash
+export OTEL_NODE_DISABLED_INSTRUMENTATIONS="fs,http,dns,undici,express"
+```
+
+## Best Practices
+
+### Do:
+- Initialize HipoCap once at application startup
+- Use environment variables for sensitive data
+- Call `Hipocap.shutdown()` before Node.js process exit
+- Use `@observe()` for custom function tracing
+- Group related spans into traces with parent spans
+- Use sessions for user interaction grouping
+- Set user IDs for all user-facing operations
+- Add meaningful metadata to traces for better debugging
+- Use automatic instrumentation when possible
+- Set up evaluations for iterative AI development
+- Use security analysis (`client.analyze()`) to protect against prompt injection
+
+### Don't:
+- Initialize HipoCap multiple times
+- Hardcode API keys in source code
+- Forget to handle JavaScript process exit properly if it is a single script
+- Use `@observe()` on async generators in Python
+- Skip session management for conversational applications
+- Forget to end manually created spans
+- Add sensitive data to span metadata without proper controls
+- Skip security analysis for user-facing functions
+
+## OpenTelemetry Compatibility
+Configure existing OpenTelemetry exporters to send to HipoCap:
+
+```javascript
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
+import { Metadata } from '@grpc/grpc-js';
+
+const metadata = new Metadata();
+metadata.set('authorization', `Bearer ${process.env.HIPOCAP_API_KEY}`);
+
+const exporter = new OTLPTraceExporter({
+  url: "http://localhost:8001/v1/traces",  // HipoCap gRPC endpoint
+  metadata,
+});
+```
+
+---
+## Migrating from Langfuse/Laminar to HipoCap
+
+### 1. Installation & Setup Migration
+
+**Langfuse/Laminar:**
+```bash
+# Python
+pip install langfuse
+# or
+pip install 'lmnr[all]'
+
+# JavaScript/TypeScript  
+npm install langfuse
+# or
+npm add @lmnr-ai/lmnr
+```
+
+**HipoCap:**
+```bash
+# Python
+pip install 'hipocap[all]'
+
+# JavaScript/TypeScript
+npm add hipocap
+```
+
+### 2. Environment Variables Migration
+
+**Langfuse:**
+```bash
+LANGFUSE_SECRET_KEY=your_secret_key
+LANGFUSE_PUBLIC_KEY=your_public_key  
+LANGFUSE_HOST=your_host_url
+```
+
+**Laminar:**
+```bash
+LMNR_PROJECT_API_KEY=your_project_api_key_here
+LMNR_BASE_URL=your_base_url
+```
+
+**HipoCap:**
+```bash
+HIPOCAP_API_KEY=your_project_api_key_here
+HIPOCAP_USER_ID=your_user_id_here
+HIPOCAP_SERVER_URL=http://localhost:8006  # Optional, for self-hosted
+HIPOCAP_OBS_BASE_URL=http://localhost      # Optional, for self-hosted
+HIPOCAP_OBS_HTTP_PORT=8000                 # Optional
+HIPOCAP_OBS_GRPC_PORT=8001                 # Optional
+```
+
+### 3. Initialization Migration
+
+**Langfuse/Laminar Python:**
+```python
+from langfuse import Langfuse
+# or
+from lmnr import Laminar
+
+langfuse = Langfuse()
+# or
+Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
+```
+
+**HipoCap Python:**
+```python
+from hipocap import Hipocap
+import os
+
+client = Hipocap.initialize(
+    project_api_key=os.environ["HIPOCAP_API_KEY"],
+    base_url="http://localhost",
+    http_port=8000,
+    grpc_port=8001,
+    hipocap_base_url="http://localhost:8006",
+    hipocap_user_id=os.environ.get("HIPOCAP_USER_ID")
+)
+```
+
+**Langfuse/Laminar JavaScript:**
+```javascript
+import { Langfuse } from "langfuse";
+// or
+import { Laminar } from '@lmnr-ai/lmnr';
+
+const langfuse = new Langfuse();
+// or
+Laminar.initialize({ projectApiKey: process.env.LMNR_PROJECT_API_KEY });
+```
+
+**HipoCap JavaScript:**
+```javascript
+import { Hipocap } from 'hipocap';
+
+const client = Hipocap.initialize({
+  projectApiKey: process.env.HIPOCAP_API_KEY,
+  baseUrl: "http://localhost",
+  httpPort: 8000,
+  grpcPort: 8001,
+  hipocapBaseUrl: "http://localhost:8006",
+  hipocapUserId: process.env.HIPOCAP_USER_ID
+});
+```
+
+### 4. Manual Tracing Migration
+
+**Langfuse/Laminar Traces/Observations → HipoCap Spans**
+
+**Langfuse/Laminar Python:**
+```python
+# Langfuse
+trace = langfuse.trace(name="my_trace")
+span = trace.span(name="my_span", input={"key": "value"})
+span.end(output={"result": "value"})
+
+# Laminar
+with Laminar.start_as_current_span(
+    name="my_span",
+    input={"key": "value"},
+    span_type="DEFAULT"
+) as span:
+    result = {"result": "value"}
+    Laminar.set_span_output(result)
+```
+
+**HipoCap Python:**
+```python
+# Using context manager (recommended)
+with Hipocap.start_as_current_span(
+    name="my_span",
+    input={"key": "value"},
+    span_type="DEFAULT"
+) as span:
+    result = {"result": "value"}
+    Hipocap.set_span_output(result)
+```
+
+**Langfuse/Laminar JavaScript:**
+```javascript
+// Langfuse
+const trace = langfuse.trace({ name: "my_trace" });
+const span = trace.span({
+  name: "my_span",
+  input: { key: "value" }
+});
+span.end({ output: { result: "value" } });
+
+// Laminar
+await Laminar.withSpan(
+  {
+    name: "my_span",
+    input: { key: "value" },
+    spanType: "DEFAULT"
+  },
+  async (span) => {
+    const result = { result: "value" };
+    Laminar.setSpanOutput(result);
+    return result;
+  }
+);
+```
+
+**HipoCap JavaScript:**
+```javascript
+await Hipocap.withSpan(
+  {
+    name: "my_span",
+    input: { key: "value" },
+    spanType: "DEFAULT"
+  },
+  async (span) => {
+    const result = { result: "value" };
+    Hipocap.setSpanOutput(result);
+    return result;
+  }
+);
+```
+
+### 5. Decorator/Wrapper Migration
+
+**Langfuse/Laminar Python Decorators:**
+```python
+from langfuse.decorators import observe
+# or
+from lmnr import observe
+
+@observe()
+def my_function(param):
+    return process(param)
+```
+
+**HipoCap Python:**
+```python
+from hipocap import observe
+
+@observe()
+def my_function(param):
+    return process(param)
+```
+
+**Laminar JavaScript:**
+```javascript
+import { observe } from '@lmnr-ai/lmnr';
+
+const myFunction = observe(
+  { name: 'myFunction' },
+  async (param) => {
+    return process(param);
+  }
+);
+```
+
+**HipoCap JavaScript:**
+```javascript
+import { observe } from 'hipocap';
+
+const myFunction = observe(
+  { name: 'myFunction' },
+  async (param) => {
+    return process(param);
+  }
+);
+```
+
+### 6. Sessions Migration
+
+**Langfuse/Laminar Sessions:**
+```python
+# Langfuse
+trace = langfuse.trace(session_id="session_123", user_id="user_456")
+
+# Laminar
+Laminar.set_session(session_id="session_123", user_id="user_456")
+```
+
+**HipoCap Sessions:**
+```python
+# Python
+Hipocap.set_session(session_id="session_123", user_id="user_456")
+```
+
+**Langfuse/Laminar JavaScript:**
+```javascript
+// Langfuse
+const trace = langfuse.trace({
+  sessionId: "session_123",
+});
+
+// Laminar
+await Laminar.withSession(
+  { sessionId: "session_123" }, 
+  async () => { ... }
+);
+```
+
+**HipoCap JavaScript:**
+```javascript
+await Hipocap.withSession(
+  { 
+    sessionId: "session_123"
+  }, 
+  async () => {
+    // Your traced operations here
+  }
+);
+```
+
+### 7. Metadata and Tags Migration
+
+**Langfuse/Laminar Metadata/Tags → HipoCap Trace Metadata**
+
+**Langfuse/Laminar Metadata:**
+```python
+# Langfuse attaches metadata to individual spans
+span = trace.span(
+    name="my_span",
+    metadata={"key": "value"},
+    tags=["tag1", "tag2"]
+)
+
+# Laminar attaches metadata to entire traces
+@observe()
+def my_function():
+    Laminar.set_metadata({"key": "value"})
+    return process_data()
+```
+
+**HipoCap Trace Metadata:**
+```python
+# HipoCap attaches metadata to entire traces
+
+@observe()
+def my_function():
+    Hipocap.set_metadata({
+        "key": "value"
+    })
+    return process_data()
+```
+
+**HipoCap JavaScript:**
+```javascript
+Hipocap.withMetadata({
+    key: "value"
+}, () => {
+    return processData();
+});
+```
+
+### Key Metadata Migration Points
+
+1. **Scope Change**: Langfuse metadata applies to individual spans; HipoCap metadata applies to entire traces
+2. **Python Requirements**: HipoCap's `set_metadata()` must be called within an active span context
+3. **No Manual Flushing**: HipoCap handles metadata persistence automatically
+
+### 8. Security Analysis (HipoCap Unique Feature)
+
+**HipoCap adds security analysis capabilities:**
+
+```python
+from hipocap import Hipocap, observe
+
+client = Hipocap.initialize(...)
+
+@observe()
+def get_user_data(user_id: str):
+    return {"user_id": user_id, "email": f"user{user_id}@example.com"}
+
+@observe()
+def process_user_request():
+    user_query = "What's my email?"
+    user_id = "123"
+    
+    user_data = get_user_data(user_id)
+    
+    # Analyze for security threats (HipoCap unique feature)
+    result = client.analyze(
+        function_name="get_user_data",
+        function_result=user_data,
+        function_args={"user_id": user_id},
+        user_query=user_query,
+        user_role="user",
+        input_analysis=True,   # Stage 1: Prompt Guard
+        llm_analysis=True,     # Stage 2: LLM Analysis
+        policy_key="default"
+    )
+    
+    if not result.get("safe_to_use"):
+        return {"error": "Blocked by security policy", "reason": result.get("reason")}
+    
+    return user_data
+```
+
+### 9. Flushing and Shutdown Migration
+
+**Langfuse/Laminar Flushing:**
+```python
+# Python
+langfuse.flush()
+langfuse.shutdown()
+# or
+# Laminar handles this automatically
+```
+
+```javascript
+// JavaScript
+await langfuse.flushAsync();
+await langfuse.shutdownAsync();
+// or
+await Laminar.shutdown();
+```
+
+**HipoCap:**
+```javascript
+// JavaScript - call before process exit
+await Hipocap.shutdown();
+```
+
+```python
+# Python - automatic, no manual flushing needed
+```
+
+### 10. Framework Integration Migration
+
+**Langfuse/Laminar Framework Integration:**
+- Requires explicit integration setup for each framework
+- Uses framework-specific handlers (e.g., `LangchainCallbackHandler`)
+
+**HipoCap Framework Integration:**
+- Automatic instrumentation when initialized
+- No additional setup required for supported frameworks
+- Auto-instruments: OpenAI, Anthropic, LangChain, LlamaIndex, etc.
+
+### Migration Checklist
+
+- [ ] Replace Langfuse/Laminar dependencies with HipoCap
+- [ ] Update environment variables to use `HIPOCAP_API_KEY` and `HIPOCAP_USER_ID`
+- [ ] Replace initialization with `Hipocap.initialize()` including security server URL
+- [ ] Convert manual trace/span creation to HipoCap span patterns
+- [ ] Replace decorators with `@observe()` 
+- [ ] Update session management to use HipoCap session APIs
+- [ ] Remove manual flushing calls (handled automatically)
+- [ ] Remove framework-specific callback handlers (auto-instrumented)
+- [ ] Test that automatic instrumentation captures your LLM calls
+- [ ] Verify metadata and user tracking in HipoCap dashboard
+- [ ] Add security analysis (`client.analyze()`) to protect user-facing functions
+- [ ] Configure security policies in HipoCap dashboard
+

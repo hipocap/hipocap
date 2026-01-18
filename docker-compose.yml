@@ -1,0 +1,222 @@
+# This compose file uses pre-built images from Docker Hub for all core HipoCap services.
+# To use these images, set in your .env file:
+#
+# DOCKER_HUB_ORG=hipocap
+# IMAGE_TAG=v1.0.0
+#
+# Images will be pulled from ${DOCKER_HUB_ORG}/[service]:${IMAGE_TAG}
+# You may override DOCKER_HUB_ORG and IMAGE_TAG if you build and push your own.
+
+name: hipocap
+
+services:
+  postgres:
+    image: postgres:16
+    pull_policy: always
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - type: bind
+        source: ./hipocap_server/postgres-init
+        target: /docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Keep the primary LMNR DB configurable, but ensure it's non-empty by default.
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    healthcheck:
+      test:
+        ["CMD", "pg_isready", "-U", "postgres", "-d", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    pull_policy: always
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+    volumes:
+      - type: volume
+        source: clickhouse-data
+        target: /var/lib/clickhouse/
+      - type: volume
+        source: clickhouse-logs
+        target: /var/log/clickhouse-server/
+      - type: bind
+        source: ./clickhouse-profiles-config.xml
+        target: /etc/clickhouse-server/users.d/lmnr.xml
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    cap_add:
+      - SYS_NICE
+      - NET_ADMIN
+      - IPC_LOCK
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  quickwit:
+    image: quickwit/quickwit:v0.8.2
+    pull_policy: always
+    ports:
+      - "7280:7280" # REST API and UI
+      - "7281:7281" # OTLP / gRPC
+    environment:
+      QW_DATA_DIR: /quickwit/qwdata
+    command: ["run"]
+    volumes:
+      - quickwit-data:/quickwit/qwdata
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7280/health/livez"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  query-engine:
+    image: "${DOCKER_HUB_ORG:-hipocap}/query-engine:${IMAGE_TAG:-v1.0.0}"
+    pull_policy: always
+    ports:
+      - "${QUERY_ENGINE_HOST_PORT:-8903}:8903"
+    environment:
+      PORT: 8903
+    healthcheck:
+      test: ["CMD", "sleep", "5"]
+      interval: 10s
+      timeout: 6s
+      retries: 3
+
+  app-server:
+    image: "${DOCKER_HUB_ORG:-hipocap}/app-server:${IMAGE_TAG:-v1.0.0}"
+    pull_policy: always
+    ports:
+      - "${APP_SERVER_HOST_PORT:-8000}:8000"
+      - "${APP_SERVER_GRPC_HOST_PORT:-8001}:8001"
+      - "${APP_SERVER_RT_HOST_PORT:-8002}:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+      query-engine:
+        condition: service_healthy
+      quickwit:
+        condition: service_healthy
+
+    environment:
+      PORT: 8000
+      GRPC_PORT: 8001
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_RO_USER: ${CLICKHOUSE_RO_USER}
+      CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
+      ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      QUERY_ENGINE_URL: http://query-engine:8903
+      QUICKWIT_SEARCH_URL: http://quickwit:7280
+      QUICKWIT_INGEST_URL: http://quickwit:7281
+      QUICKWIT_SPANS_INDEX_ID: spans
+
+  hipocap-server:
+    image: "${DOCKER_HUB_ORG:-hipocap}/hipocap-server:latest"
+    container_name: hipocap-server
+    pull_policy: always
+    ports:
+      - "${HIPOCAP_SERVER_HOST_PORT:-8006}:8006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${HIPOCAP_DB_NAME:-hipocap_second}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # LMNR Database (for authentication)
+      LMNR_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5433/${POSTGRES_DB:-postgres}
+      # OpenAI/LLM configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      INFECTION_MODEL: ${INFECTION_MODEL}
+      ANALYSIS_MODEL: ${ANALYSIS_MODEL}
+      GUARD_MODEL: ${GUARD_MODEL:-meta-llama/Prompt-Guard-86M}
+      GUARD_DEVICE: ${GUARD_DEVICE:-cpu}
+      # HuggingFace token for accessing private/gated models
+      HF_TOKEN: ${HF_TOKEN}
+      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
+      # API Configuration
+      HIPOCAP_API_KEY: ${HIPOCAP_API_KEY}
+      # Runtime flag
+      RUNNING_IN_DOCKER: "1"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+  frontend:
+    image: "${DOCKER_HUB_ORG:-hipocap}/frontend:${IMAGE_TAG:-v1.0.0}"
+    pull_policy: always
+    ports:
+      - "${FRONTEND_HOST_PORT:-3000}:3000"
+    environment:
+      # Runtime environment
+      NODE_ENV: development
+      ENVIRONMENT: LITE
+      RUNNING_IN_DOCKER: "1"
+      # NextAuth configuration
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-next_secret_abc}
+      # Backend URLs (using Docker service names)
+      BACKEND_URL: http://app-server:8000
+      BACKEND_RT_URL: http://app-server:8002
+      # Database configuration (using Docker service name and internal port)
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-10}
+      FORCE_RUN_MIGRATIONS: ${FORCE_RUN_MIGRATIONS:-false}
+      # ClickHouse configuration
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-default}
+      # Query engine and QuickWit
+      QUERY_ENGINE_URL: http://query-engine:8903
+      QUICKWIT_SEARCH_URL: http://quickwit:7280
+      QUICKWIT_INGEST_URL: http://quickwit:7281
+      # Security tokens
+      SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      # Hipocap server configuration
+      HIPOCAP_SERVER_URL: http://hipocap-server:8006
+      HIPOCAP_API_KEY: ${HIPOCAP_API_KEY}
+      # Optional: Disable telemetry
+      NEXT_OTEL_FETCH_DISABLED: ${NEXT_OTEL_FETCH_DISABLED:-1}
+    depends_on:
+      app-server:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+      query-engine:
+        condition: service_healthy
+      quickwit:
+        condition: service_healthy
+      hipocap-server:
+        condition: service_started
+
+volumes:
+  postgres-data:
+  clickhouse-data:
+  clickhouse-logs:
+  quickwit-data:
