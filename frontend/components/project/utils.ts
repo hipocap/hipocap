@@ -21,8 +21,7 @@ export interface SidebarCategory {
 
 export const getSidebarMenus = (projectId: string): SidebarCategory[] => [
   {
-    // name: "Monitoring",
-    name: "",
+    name: "Monitoring",
     items: [
       {
         name: "Dashboards",
@@ -39,6 +38,11 @@ export const getSidebarMenus = (projectId: string): SidebarCategory[] => [
         href: `/project/${projectId}/traces`,
         icon: Rows4,
       },
+    ],
+  },
+  {
+    name: "Development",
+    items: [
       {
         name: "Playgrounds",
         href: `/project/${projectId}/playgrounds`,
@@ -49,6 +53,11 @@ export const getSidebarMenus = (projectId: string): SidebarCategory[] => [
         href: `/project/${projectId}/sql`,
         icon: SquareTerminal,
       },
+    ],
+  },
+  {
+    name: "Data Management",
+    items: [
       {
         name: "Datasets",
         href: `/project/${projectId}/datasets`,
@@ -64,6 +73,11 @@ export const getSidebarMenus = (projectId: string): SidebarCategory[] => [
       //   href: `/project/${projectId}/evaluators`,
       //   icon: SquareFunction,
       // },
+    ],
+  },
+  {
+    name: "Configuration",
+    items: [
       {
         name: "Settings",
         href: `/project/${projectId}/settings`,

@@ -9,14 +9,16 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar.tsx";
 import { useWorkspaceMenuContext, WorkspaceMenu } from "@/components/workspace/workspace-menu-provider.tsx";
 import { cn } from "@/lib/utils.ts";
 
-const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
+const mainMenus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
   {
     name: "Projects",
     value: "projects",
@@ -32,7 +34,9 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
     value: "team",
     icon: Users,
   },
+];
 
+const settingsMenus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
   {
     name: "Settings",
     value: "settings",
@@ -48,20 +52,27 @@ interface WorkspaceSidebarContentProps {
 export const WorkspaceSidebarContent = ({ isOwner, workspaceFeatureEnabled }: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
   const pathName = usePathname();
-  const sidebarMenus = useMemo(() => {
+  const filteredMainMenus = useMemo(() => {
     if (!workspaceFeatureEnabled) {
-      return menus.filter((m) => m.value === "projects");
+      return mainMenus.filter((m) => m.value === "projects");
     }
+    return mainMenus;
+  }, [workspaceFeatureEnabled]);
 
-    return isOwner ? menus : menus.filter((m) => m.value !== "settings");
+  const filteredSettingsMenus = useMemo(() => {
+    if (!workspaceFeatureEnabled) {
+      return [];
+    }
+    return isOwner ? settingsMenus : [];
   }, [isOwner, workspaceFeatureEnabled]);
 
   return (
     <SidebarContent>
       <SidebarGroup>
+        <SidebarGroupLabel>Main</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {sidebarMenus.map((m) => (
+            {filteredMainMenus.map((m) => (
               <SidebarMenuItem className="h-7" key={m.name}>
                 <SidebarMenuButton
                   className={cn({
@@ -80,6 +91,35 @@ export const WorkspaceSidebarContent = ({ isOwner, workspaceFeatureEnabled }: Wo
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
+
+      {filteredSettingsMenus.length > 0 && (
+        <>
+          <SidebarSeparator />
+          <SidebarGroup>
+            <SidebarGroupLabel>Settings</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filteredSettingsMenus.map((m) => (
+                  <SidebarMenuItem className="h-7" key={m.name}>
+                    <SidebarMenuButton
+                      className={cn({
+                        "bg-accent": m.value === menu,
+                      })}
+                      onClick={() => setMenu(m.value)}
+                      asChild
+                    >
+                      <Link href={`${pathName}?tab=${m.value}`}>
+                        <m.icon />
+                        <span>{m.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </>
+      )}
     </SidebarContent>
   );
 };

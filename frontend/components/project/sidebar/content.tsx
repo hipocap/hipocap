@@ -11,9 +11,11 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { ProjectDetails } from "@/lib/actions/project";
@@ -69,22 +71,26 @@ const ProjectSidebarContent = ({
   return (
     <SidebarContent>
       {categories.map((category, categoryIndex) => (
-        <SidebarGroup key={category.name}>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
-              {category.items.map((option) => (
-                <SidebarMenuItem className="h-8" key={option.name}>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith(option.href)} tooltip={option.name}>
-                    <Link href={option.href}>
-                      <option.icon />
-                      <span>{option.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <React.Fragment key={category.name}>
+          {categoryIndex > 0 && <SidebarSeparator />}
+          <SidebarGroup>
+            {category.name && <SidebarGroupLabel>{category.name}</SidebarGroupLabel>}
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-1">
+                {category.items.map((option) => (
+                  <SidebarMenuItem className="h-8" key={option.name}>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith(option.href)} tooltip={option.name}>
+                      <Link href={option.href}>
+                        <option.icon />
+                        <span>{option.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </React.Fragment>
       ))}
 
       {isFreeTier && (open || openMobile) && (
