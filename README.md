@@ -31,7 +31,11 @@
     - [x] Custom dashboards and metrics
     - [x] Evaluations framework for testing and validation
 
-## Documentation
+## Demo
+
+<p align="center">
+  <img alt="HipoCap demo screenshot" src="./images/demo.png" width="700">
+</p>
 
 ## Quick Start (5 minutes)
 
