@@ -220,7 +220,7 @@ class GuardPipeline:
         # Initialize OpenAI client for LLM agent if needed
         if self.enable_llm_agent and not self.openai_client:
             try:
-                api_key = openai_api_key or "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"
+                api_key = openai_api_key
                 base_url = openai_base_url or "https://openrouter.ai/api/v1"
                 
                 # Set timeout to prevent long waits (30 seconds total timeout)
