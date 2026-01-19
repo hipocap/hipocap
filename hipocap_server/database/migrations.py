@@ -118,30 +118,43 @@ def check_custom_prompts_needed(engine) -> bool:
 
 def migrate_add_shields_table(engine):
     """Add shields table."""
-    with engine.connect() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS shields (
-                id SERIAL PRIMARY KEY,
-                shield_key VARCHAR(255) UNIQUE NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                description TEXT,
-                prompt_description TEXT NOT NULL,
-                what_to_block TEXT NOT NULL,
-                what_not_to_block TEXT NOT NULL,
-                owner_id VARCHAR(36) NOT NULL,
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP WITH TIME ZONE
-            )
-        """))
-        # Create indexes
-        conn.execute(text("""
-            CREATE INDEX IF NOT EXISTS idx_shields_shield_key ON shields(shield_key)
-        """))
-        conn.execute(text("""
-            CREATE INDEX IF NOT EXISTS idx_shields_owner_id ON shields(owner_id)
-        """))
-        conn.commit()
+    try:
+        with engine.begin() as conn:
+            # Create table
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS shields (
+                    id SERIAL PRIMARY KEY,
+                    shield_key VARCHAR(255) UNIQUE NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    prompt_description TEXT NOT NULL,
+                    what_to_block TEXT NOT NULL,
+                    what_not_to_block TEXT NOT NULL,
+                    owner_id VARCHAR(36) NOT NULL,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE
+                )
+            """))
+            # Create indexes (only if they don't exist)
+            try:
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_shields_shield_key ON shields(shield_key)
+                """))
+            except Exception as e:
+                log_warning(f"Index idx_shields_shield_key may already exist: {e}")
+            
+            try:
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_shields_owner_id ON shields(owner_id)
+                """))
+            except Exception as e:
+                log_warning(f"Index idx_shields_owner_id may already exist: {e}")
+            
+            log_info("Shields table created successfully")
+    except Exception as e:
+        log_error(f"Error creating shields table: {e}")
+        raise
 
 
 def check_shields_table_needed(engine) -> bool:
