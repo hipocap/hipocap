@@ -82,11 +82,13 @@ def create_default_policy(owner_id: str):
             "severity_rules": {
                 "safe": {
                     "allow_function_calls": True,
-                    "allow_output_use": True
+                    "allow_output_use": True,
+                    "block": False
                 },
                 "low": {
                     "allow_function_calls": True,
-                    "allow_output_use": True
+                    "allow_output_use": True,
+                    "block": False
                 },
                 "medium": {
                     "allow_function_calls": False,
@@ -103,7 +105,12 @@ def create_default_policy(owner_id: str):
                     "allow_output_use": False,
                     "block": True
                 }
-            }
+            },
+            "output_restrictions": {},
+            "function_chaining": {},
+            "context_rules": [],
+            "decision_thresholds": {},
+            "custom_prompts": {}
         }
         
         policy = PolicyRepository.create(
@@ -115,6 +122,11 @@ def create_default_policy(owner_id: str):
             roles=default_config.get("roles"),
             functions=default_config.get("functions"),
             severity_rules=default_config.get("severity_rules"),
+            output_restrictions=default_config.get("output_restrictions"),
+            function_chaining=default_config.get("function_chaining"),
+            context_rules=default_config.get("context_rules"),
+            decision_thresholds=default_config.get("decision_thresholds"),
+            custom_prompts=default_config.get("custom_prompts"),
             is_default=True
         )
         print("Default policy created successfully")

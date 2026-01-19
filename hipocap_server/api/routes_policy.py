@@ -8,6 +8,7 @@ from typing import List, Optional
 from .models import PolicyCreate, PolicyUpdate, PolicyResponse, PolicyUpdateResponse
 from ..database.connection import get_db
 from ..database.repositories.policy_repository import PolicyRepository
+from ..database.init_db import create_default_policy
 from ..auth.middleware import get_lmnr_user_info, LMNRUserInfo
 
 router = APIRouter(prefix="/api/v1/policies", tags=["policies"])
@@ -28,6 +29,11 @@ async def create_policy(
             detail=f"Policy with key '{policy_data.policy_key}' already exists"
         )
     
+    # Normalize severity_rules: if None or empty dict, pass None to repository so defaults are applied
+    severity_rules = policy_data.severity_rules
+    if severity_rules is not None and len(severity_rules) == 0:
+        severity_rules = None
+    
     policy = PolicyRepository.create(
         db=db,
         policy_key=policy_data.policy_key,
@@ -36,7 +42,7 @@ async def create_policy(
         description=policy_data.description,
         roles=policy_data.roles,
         functions=policy_data.functions,
-        severity_rules=policy_data.severity_rules,
+        severity_rules=severity_rules,
         output_restrictions=policy_data.output_restrictions,
         function_chaining=policy_data.function_chaining,
         context_rules=policy_data.context_rules,
@@ -80,6 +86,22 @@ async def list_policies(
         # Admin check can be added later if needed via LMNR user roles
         policies = PolicyRepository.get_by_owner(db, user_info.id)
     
+    # Auto-create default policy if user has no policies and no default policy exists
+    if not policies:
+        # Check if default policy exists by key (might exist but not be set as default)
+        existing_default = PolicyRepository.get_by_key(db, "default")
+        if not existing_default:
+            # Create default policy for this user
+            try:
+                create_default_policy(user_info.id)
+                # Refresh policies list
+                policies = PolicyRepository.get_by_owner(db, user_info.id)
+            except Exception as e:
+                # Log error but don't fail the request
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to auto-create default policy: {e}")
+    
     return [
         PolicyResponse(
             id=policy.id,
@@ -94,6 +116,7 @@ async def list_policies(
             function_chaining=policy.function_chaining,
             context_rules=policy.context_rules,
             decision_thresholds=policy.decision_thresholds,
+            custom_prompts=policy.custom_prompts,
             is_active=policy.is_active,
             is_default=policy.is_default,
             created_at=policy.created_at.isoformat() if policy.created_at else "",
