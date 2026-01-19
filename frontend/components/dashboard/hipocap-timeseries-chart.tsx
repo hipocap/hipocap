@@ -183,7 +183,7 @@ export default function HipocapTimeSeriesChart() {
 
   if (isLoading) {
     return (
-      <div className="w-full border gap-2 rounded-lg p-4 border-dashed border-border bg-secondary">
+      <div className="w-full border rounded-lg p-6 border-border bg-card shadow-sm mb-6">
         <Skeleton className="h-64 w-full" />
       </div>
     );
@@ -194,10 +194,10 @@ export default function HipocapTimeSeriesChart() {
   }
 
   return (
-    <div ref={containerRef} className="w-full border gap-2 rounded-lg p-4 border-dashed border-border bg-secondary mb-6">
-      <div className="mb-4">
-        <h3 className="text-sm font-medium">Function Calls Over Time</h3>
-        <p className="text-xs text-muted-foreground">Blocked and allowed function calls based on selected time range</p>
+    <div ref={containerRef} className="w-full border rounded-lg p-6 border-border bg-card shadow-sm mb-6">
+      <div className="mb-6">
+        <h3 className="text-base font-semibold text-foreground mb-1">Function Calls Over Time</h3>
+        <p className="text-sm text-muted-foreground">Blocked and allowed function calls based on selected time range</p>
       </div>
       <div className="flex flex-col items-start w-full">
         <ChartContainer config={chartConfig} className="h-64 w-full">
@@ -210,7 +210,7 @@ export default function HipocapTimeSeriesChart() {
             barCategoryGap={2}
             style={{ userSelect: "none", cursor: "crosshair" }}
           >
-            <CartesianGrid vertical={false} />
+            <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-border/30" />
             <XAxis
               dataKey="timestamp"
               tickLine={false}
@@ -218,8 +218,14 @@ export default function HipocapTimeSeriesChart() {
               tickFormatter={smartTicksResult?.formatter}
               allowDataOverflow
               ticks={smartTicksResult?.ticks}
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
             />
-            <YAxis tickLine={false} axisLine={false} tickFormatter={numberFormatter.format} />
+            <YAxis 
+              tickLine={false} 
+              axisLine={false} 
+              tickFormatter={numberFormatter.format}
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+            />
             <ChartTooltip
               content={
                 <ChartTooltipContent
@@ -245,7 +251,7 @@ export default function HipocapTimeSeriesChart() {
             )}
           </BarChart>
         </ChartContainer>
-        <div className="text-xs text-muted-foreground text-center mt-2" title={String(totalCount)}>
+        <div className="text-sm text-muted-foreground text-center mt-4 font-medium" title={String(totalCount)}>
           Total: {countNumberFormatter.format(totalCount)}
         </div>
       </div>

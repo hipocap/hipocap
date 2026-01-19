@@ -47,7 +47,7 @@ const GridLayout = () => {
   const children = useMemo(
     () =>
       (data || []).map((chart) => (
-        <div key={chart.id} className="rounded-lg bg-secondary">
+        <div key={chart.id} className="rounded-lg bg-card border border-border shadow-sm">
           <Chart chart={chart} />
         </div>
       )),

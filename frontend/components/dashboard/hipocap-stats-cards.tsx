@@ -28,19 +28,19 @@ interface StatCardProps {
 
 function StatCard({ title, value, icon, colorClass, href, percentage }: StatCardProps) {
   const content = (
-    <Card className="border rounded-lg h-full border-dashed border-border hover:border-solid transition-all cursor-pointer bg-secondary">
-      <CardContent className="p-4 h-full flex flex-col">
+    <Card className="border rounded-lg h-full border-border hover:border-primary/50 transition-all cursor-pointer bg-card hover:bg-card/80 shadow-sm">
+      <CardContent className="p-6 h-full flex flex-col">
         <div className="flex items-start justify-between gap-4 h-full">
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground mb-2 leading-tight">{title}</p>
+            <p className="text-xs text-muted-foreground mb-3 leading-tight font-medium">{title}</p>
             <div className="flex items-baseline gap-2 flex-wrap">
-              <p className={`text-2xl font-bold ${colorClass} leading-none`}>{value.toLocaleString()}</p>
+              <p className={`text-3xl font-bold ${colorClass} leading-none`}>{value.toLocaleString()}</p>
               {percentage !== undefined && percentage > 0 && (
-                <p className={`text-xs ${colorClass} opacity-70 leading-tight`}>({percentage.toFixed(1)}%)</p>
+                <p className={`text-sm ${colorClass} opacity-80 leading-tight font-medium`}>({percentage.toFixed(1)}%)</p>
               )}
             </div>
           </div>
-          <div className={`${colorClass} opacity-30 flex-shrink-0`}>{icon}</div>
+          <div className={`${colorClass} opacity-40 flex-shrink-0 transition-opacity hover:opacity-60`}>{icon}</div>
         </div>
       </CardContent>
     </Card>
@@ -133,7 +133,7 @@ export default function HipocapStatsCards() {
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
       <StatCard
         title="Total Functions Analyzed"
         value={total}
@@ -145,7 +145,7 @@ export default function HipocapStatsCards() {
         title="Blocked Functions"
         value={blocked}
         icon={<ShieldX className="h-8 w-8" />}
-        colorClass="text-red-500"
+        colorClass="text-destructive"
         href={buildTracesUrl("BLOCKED")}
         percentage={blockedPercentage}
       />
@@ -153,7 +153,7 @@ export default function HipocapStatsCards() {
         title="Allowed Functions"
         value={allowed}
         icon={<ShieldCheck className="h-8 w-8" />}
-        colorClass="text-green-500"
+        colorClass="text-success"
         href={buildTracesUrl("ALLOWED")}
         percentage={allowedPercentage}
       />
@@ -162,7 +162,7 @@ export default function HipocapStatsCards() {
           title="Review Required"
           value={reviewRequired}
           icon={<AlertCircle className="h-8 w-8" />}
-          colorClass="text-yellow-500"
+          colorClass="text-[hsl(var(--chart-3))]"
           href={buildTracesUrl("REVIEW_REQUIRED")}
           percentage={reviewPercentage}
         />

@@ -25,7 +25,7 @@ export default function Dashboard() {
         </div>
       </Header>
       <ScrollArea className="h-full">
-        <div className="h-full px-4 pb-4">
+        <div className="h-full px-6 py-6">
           <HipocapStatsCards />
           <HipocapTimeSeriesChart />
           <GridLayout />
