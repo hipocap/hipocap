@@ -172,55 +172,6 @@ docker compose -f docker-compose.yml logs -f
 docker compose -f docker-compose.yml down
 ```
 
-## Configuration
-
-### Required Environment Variables
-
-These must be set in your `.env` file:
-
-```bash
-# Database
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your-password
-POSTGRES_DB=postgres
-HIPOCAP_DB_NAME=hipocap_second
-
-# ClickHouse
-CLICKHOUSE_USER=default
-CLICKHOUSE_PASSWORD=your-password
-
-# Security (generate random strings)
-SHARED_SECRET_TOKEN=random-32-char-string
-AEAD_SECRET_KEY=random-32-char-string
-HIPOCAP_API_KEY=random-16-char-string
-NEXTAUTH_SECRET=random-32-char-string
-```
-
-### Optional Environment Variables
-
-For security analysis features, add LLM configuration:
-
-```bash
-# LLM Models (for security analysis)
-OPENAI_API_KEY=your-openai-key
-OPENAI_BASE_URL=https://openrouter.ai/api/v1
-OPENAI_MODEL=gpt-4o-mini
-ANALYSIS_MODEL=x-ai/grok-4.1-fast
-INFECTION_MODEL=x-ai/grok-4.1-fast
-GUARD_MODEL=meta-llama/Prompt-Guard-86M
-HF_TOKEN=your-huggingface-token
-```
-
-### Port Configuration (Optional)
-
-Override default ports if needed:
-
-```bash
-FRONTEND_HOST_PORT=3000
-APP_SERVER_HOST_PORT=8000
-HIPOCAP_SERVER_HOST_PORT=8006
-```
-
 ## Python Integration
 
 ### Install HipoCap SDK
