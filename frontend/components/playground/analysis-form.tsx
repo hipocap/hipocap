@@ -366,7 +366,6 @@ export function AnalysisForm({ onResult, onError, onFormReady }: AnalysisFormPro
     });
     // Only include dependencies that can actually change
     // The ref comparison prevents infinite loops even if the effect runs
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [errors, isLoading, requestMode, onFormReady]);
 
   return (

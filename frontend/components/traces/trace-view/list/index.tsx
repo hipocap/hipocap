@@ -59,7 +59,6 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
     const rafId = requestAnimationFrame(scrollToSelected);
 
     return () => cancelAnimationFrame(rafId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const items = virtualizer?.getVirtualItems() || [];

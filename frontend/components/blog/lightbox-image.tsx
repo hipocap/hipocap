@@ -49,6 +49,7 @@ export default function LightboxImage(props: LightboxImageProps) {
     <>
       <img
         {...rest}
+        alt={props.alt ?? ""}
         className={`${className ?? ""} cursor-zoom-in transition-transform duration-150 hover:scale-[1.01]`}
         onClick={(e) => {
           onClick?.(e);

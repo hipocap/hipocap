@@ -8,8 +8,7 @@ import { CategoricalChartFunc } from "recharts/types/chart/generateCategoricalCh
 import { numberFormatter, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getGroupByInterval } from "@/lib/utils";
-import { swrFetcher } from "@/lib/utils";
+import { getGroupByInterval, swrFetcher } from "@/lib/utils";
 
 import useSWR from "swr";
 import HipocapRoundedBar from "./hipocap-bar";

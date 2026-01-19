@@ -101,7 +101,6 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
       resetInfiniteScroll();
       fetchPage(0, true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, depsString]);
 
   return {
