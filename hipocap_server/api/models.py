@@ -275,8 +275,8 @@ class AnalysisTraceResponse(BaseModel):
     """Response model for analysis trace."""
     
     id: int
-    user_id: int
-    api_key_id: Optional[int] = None
+    user_id: str  # Changed to string (UUID) to match database schema
+    api_key_id: Optional[str] = None  # Changed to string to match database schema
     function_name: str
     user_query: Optional[str] = None
     user_role: Optional[str] = None
@@ -295,7 +295,7 @@ class AnalysisTraceResponse(BaseModel):
     quarantine_score: Optional[float] = None
     llm_score: Optional[float] = None
     review_status: str
-    reviewed_by: Optional[int] = None
+    reviewed_by: Optional[str] = None  # Changed to string (UUID) to match database schema
     reviewed_at: Optional[datetime] = None
     review_notes: Optional[str] = None
     ip_address: Optional[str] = None
@@ -359,6 +359,149 @@ class TraceListResponse(BaseModel):
                 "total": 100,
                 "limit": 50,
                 "offset": 0
+            }
+        }
+
+
+class TraceStatsResponse(BaseModel):
+    """Response model for trace statistics."""
+    
+    total: int = Field(..., description="Total number of traces")
+    blocked: int = Field(..., description="Number of blocked traces")
+    allowed: int = Field(..., description="Number of allowed traces")
+    review_required: int = Field(..., description="Number of traces requiring review")
+    by_function: Dict[str, Dict[str, int]] = Field(
+        default_factory=dict,
+        description="Statistics grouped by function name"
+    )
+
+
+class TraceTimeSeriesDataPoint(BaseModel):
+    """Single data point in time series."""
+    
+    timestamp: str = Field(..., description="ISO timestamp")
+    blocked: int = Field(..., description="Number of blocked functions in this interval")
+    allowed: int = Field(..., description="Number of allowed functions in this interval")
+
+
+class TraceTimeSeriesResponse(BaseModel):
+    """Response model for time-series trace statistics."""
+    
+    items: List[TraceTimeSeriesDataPoint] = Field(..., description="Time-series data points")
+
+
+# Shield models
+class ShieldCreate(BaseModel):
+    """Request model for shield creation."""
+    
+    shield_key: str = Field(..., min_length=1, max_length=255, description="Unique identifier for the shield")
+    name: str = Field(..., min_length=1, max_length=255, description="Human-readable name")
+    description: Optional[str] = Field(None, description="Optional description")
+    content: str = Field(..., description="JSON string containing prompt_description, what_to_block, what_not_to_block")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "shield_key": "email_shield",
+                "name": "Email Protection Shield",
+                "description": "Shield to protect against email-based prompt injection",
+                "content": '{"prompt_description": "Email content analysis", "what_to_block": "Suspicious email patterns", "what_not_to_block": "Legitimate email content"}'
+            }
+        }
+
+
+class ShieldResponse(BaseModel):
+    """Response model for shield."""
+    
+    id: int
+    shield_key: str
+    name: str
+    description: Optional[str] = None
+    prompt_description: str
+    what_to_block: str
+    what_not_to_block: str
+    owner_id: str  # LMNR user UUID as string
+    is_active: bool
+    created_at: str
+    updated_at: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class ShieldUpdate(BaseModel):
+    """Request model for shield update."""
+    
+    name: Optional[str] = Field(None, description="Shield name")
+    description: Optional[str] = Field(None, description="Shield description")
+    content: Optional[str] = Field(None, description="JSON string containing prompt_description, what_to_block, what_not_to_block")
+    is_active: Optional[bool] = Field(None, description="Whether shield is active")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "Updated Shield Name",
+                "description": "Updated description",
+                "content": '{"prompt_description": "Updated description", "what_to_block": "Updated blocking rules", "what_not_to_block": "Updated exceptions"}'
+            }
+        }
+
+
+class ShieldUpdateResponse(BaseModel):
+    """Detailed response model for shield update showing what changed."""
+    
+    success: bool = Field(..., description="Whether the update was successful")
+    shield: ShieldResponse = Field(..., description="Updated shield")
+    changes: Dict[str, Any] = Field(..., description="Detailed information about what changed")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "shield": {
+                    "id": 1,
+                    "shield_key": "email_shield",
+                    "name": "Updated Shield"
+                },
+                "changes": {
+                    "name": {"old": "Old Name", "new": "Updated Shield"},
+                    "content": {
+                        "what_to_block": {"old": "Old rules", "new": "New rules"}
+                    }
+                }
+            }
+        }
+
+
+# Shield Analysis Models
+class ShieldAnalyzeRequest(BaseModel):
+    """Request model for shield-based analysis."""
+    
+    content: str = Field(..., description="The text content to analyze (can be any input - email content, document text, user message, etc.)")
+    user_query: Optional[str] = Field(None, description="Optional user query for context")
+    require_reason: bool = Field(False, description="If True, include a one-liner reason for the decision")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "content": "This is the text content to analyze. It can be any input from the user.",
+                "user_query": "Optional context about what the user was trying to do",
+                "require_reason": True
+            }
+        }
+
+
+class ShieldAnalyzeResponse(BaseModel):
+    """Response model for shield-based analysis."""
+    
+    decision: str = Field(..., description="Final decision: BLOCK or ALLOW")
+    reason: Optional[str] = Field(None, description="One-liner reason for the decision (only if require_reason=True)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "decision": "BLOCK",
+                "reason": "Content contains suspicious patterns matching blocked criteria"
             }
         }
 

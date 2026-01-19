@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import router, initialize_pipeline
 from .routes_policy import router as policy_router
+from .routes_shield import router as shield_router
 from ..database.connection import init_db, engine
 from ..database.migrations import run_migrations
 import os
@@ -71,6 +72,7 @@ def create_app(
     # Include routers
     app.include_router(router)
     app.include_router(policy_router)
+    app.include_router(shield_router)
     
     # Initialize database and pipeline on startup
     @app.on_event("startup")

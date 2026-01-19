@@ -3,7 +3,7 @@ Repository for analysis trace operations.
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_, or_
+from sqlalchemy import desc, and_, or_, func, text, case
 from ..models import AnalysisTrace
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date, time
@@ -255,4 +255,179 @@ class AnalysisTraceRepository:
             query = query.filter(AnalysisTrace.review_status == status)
         
         return query.count()
+    
+    @staticmethod
+    def get_stats_by_decision(
+        db: Session,
+        user_id: str,  # Changed to UUID string
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> Dict[str, int]:
+        """
+        Get statistics grouped by final_decision.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            start_date: Start date filter
+            end_date: End date filter
+            
+        Returns:
+            Dictionary with counts by decision type
+        """
+        query = db.query(
+            AnalysisTrace.final_decision,
+            func.count(AnalysisTrace.id).label('count')
+        ).filter(AnalysisTrace.user_id == user_id)
+        
+        if start_date:
+            query = query.filter(AnalysisTrace.created_at >= datetime.combine(start_date, datetime.min.time()))
+        
+        if end_date:
+            query = query.filter(AnalysisTrace.created_at <= datetime.combine(end_date, datetime.max.time()))
+        
+        results = query.group_by(AnalysisTrace.final_decision).all()
+        
+        stats = {
+            "total": 0,
+            "blocked": 0,
+            "allowed": 0,
+            "review_required": 0
+        }
+        
+        for decision, count in results:
+            stats["total"] += count
+            if decision == "BLOCKED":
+                stats["blocked"] = count
+            elif decision == "ALLOWED":
+                stats["allowed"] = count
+            elif decision == "REVIEW_REQUIRED":
+                stats["review_required"] = count
+        
+        return stats
+    
+    @staticmethod
+    def get_stats_by_function(
+        db: Session,
+        user_id: str,  # Changed to UUID string
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> Dict[str, Dict[str, int]]:
+        """
+        Get statistics grouped by function_name and final_decision.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            start_date: Start date filter
+            end_date: End date filter
+            
+        Returns:
+            Dictionary mapping function_name to stats dict
+        """
+        query = db.query(
+            AnalysisTrace.function_name,
+            AnalysisTrace.final_decision,
+            func.count(AnalysisTrace.id).label('count')
+        ).filter(AnalysisTrace.user_id == user_id)
+        
+        if start_date:
+            query = query.filter(AnalysisTrace.created_at >= datetime.combine(start_date, datetime.min.time()))
+        
+        if end_date:
+            query = query.filter(AnalysisTrace.created_at <= datetime.combine(end_date, datetime.max.time()))
+        
+        results = query.group_by(AnalysisTrace.function_name, AnalysisTrace.final_decision).all()
+        
+        by_function: Dict[str, Dict[str, int]] = {}
+        
+        for function_name, decision, count in results:
+            if function_name not in by_function:
+                by_function[function_name] = {
+                    "blocked": 0,
+                    "allowed": 0,
+                    "review_required": 0,
+                    "total": 0
+                }
+            
+            by_function[function_name]["total"] += count
+            if decision == "BLOCKED":
+                by_function[function_name]["blocked"] = count
+            elif decision == "ALLOWED":
+                by_function[function_name]["allowed"] = count
+            elif decision == "REVIEW_REQUIRED":
+                by_function[function_name]["review_required"] = count
+        
+        return by_function
+    
+    @staticmethod
+    def get_time_series_stats(
+        db: Session,
+        user_id: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        interval: str = "hour"
+    ) -> List[Dict[str, Any]]:
+        """
+        Get time-series statistics grouped by time intervals.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            start_date: Start date filter
+            end_date: End date filter
+            interval: Time interval ('minute', 'hour', 'day')
+            
+        Returns:
+            List of dictionaries with timestamp, blocked_count, and allowed_count
+        """
+        # Map interval to PostgreSQL date_trunc interval
+        interval_map = {
+            "minute": "minute",
+            "hour": "hour",
+            "day": "day"
+        }
+        trunc_interval = interval_map.get(interval, "hour")
+        
+        # Build base query using text() for PostgreSQL-specific functions
+        timestamp_expr = func.date_trunc(trunc_interval, AnalysisTrace.created_at)
+        
+        # Use conditional aggregation with CASE statements
+        blocked_expr = func.sum(
+            case(
+                (AnalysisTrace.final_decision == "BLOCKED", 1),
+                else_=0
+            )
+        )
+        allowed_expr = func.sum(
+            case(
+                (AnalysisTrace.final_decision == "ALLOWED", 1),
+                else_=0
+            )
+        )
+        
+        query = db.query(
+            timestamp_expr.label('timestamp'),
+            blocked_expr.label('blocked_count'),
+            allowed_expr.label('allowed_count')
+        ).filter(AnalysisTrace.user_id == user_id)
+        
+        if start_date:
+            query = query.filter(AnalysisTrace.created_at >= datetime.combine(start_date, datetime.min.time()))
+        
+        if end_date:
+            query = query.filter(AnalysisTrace.created_at <= datetime.combine(end_date, datetime.max.time()))
+        
+        results = query.group_by(timestamp_expr).order_by(timestamp_expr).all()
+        
+        # Convert to list of dicts
+        time_series = []
+        for row in results:
+            time_series.append({
+                "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+                "blocked": int(row.blocked_count or 0),
+                "allowed": int(row.allowed_count or 0)
+            })
+        
+        return time_series
 

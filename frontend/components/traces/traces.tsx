@@ -9,14 +9,14 @@ import { useUserContext } from "@/contexts/user-context";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import SessionsTable from "./sessions-table";
+import HipocapTracesTable from "./hipocap-traces-table";
 import SpansTable from "./spans-table";
 import { TracesStoreProvider, useTracesStoreContext } from "./traces-store";
 import TracesTable from "./traces-table";
 
 enum TracesTab {
   TRACES = "traces",
-  SESSIONS = "sessions",
+  FUNCTION_TRACES = "function-traces",
   SPANS = "spans",
   ANALYTICS = "analytics",
 }
@@ -91,8 +91,8 @@ function TracesContent() {
           <TabsTrigger className="text-xs" value="spans">
             Spans
           </TabsTrigger>
-          <TabsTrigger className="text-xs" value="sessions">
-            Sessions
+          <TabsTrigger className="text-xs" value="function-traces">
+            Function Traces
           </TabsTrigger>
           <TabsTrigger className="text-xs" value="analytics">
             Analytics
@@ -104,8 +104,8 @@ function TracesContent() {
         <TabsContent value="spans" asChild>
           <SpansTable />
         </TabsContent>
-        <TabsContent value="sessions" asChild>
-          <SessionsTable />
+        <TabsContent value="function-traces" asChild>
+          <HipocapTracesTable />
         </TabsContent>
         <TabsContent value="analytics" asChild>
           <TracesTable showTable={false} />

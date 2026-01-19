@@ -3,6 +3,8 @@
 import Link from "next/link";
 
 import GridLayout from "@/components/dashboard/grid-layout";
+import HipocapStatsCards from "@/components/dashboard/hipocap-stats-cards";
+import HipocapTimeSeriesChart from "@/components/dashboard/hipocap-timeseries-chart";
 import { Button } from "@/components/ui/button";
 
 import DateRangeFilter from "../ui/date-range-filter";
@@ -24,6 +26,8 @@ export default function Dashboard() {
       </Header>
       <ScrollArea className="h-full">
         <div className="h-full px-4 pb-4">
+          <HipocapStatsCards />
+          <HipocapTimeSeriesChart />
           <GridLayout />
         </div>
       </ScrollArea>

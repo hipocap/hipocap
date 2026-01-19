@@ -5,6 +5,7 @@ import {
   Rows4,
   Settings,
   Shield,
+  ShieldCheck,
   SquareTerminal,
 } from "lucide-react";
 
@@ -32,6 +33,11 @@ export const getSidebarMenus = (projectId: string): SidebarCategory[] => [
         name: "Policies",
         href: `/project/${projectId}/policies`,
         icon: Shield,
+      },
+      {
+        name: "Shields",
+        href: `/project/${projectId}/shields`,
+        icon: ShieldCheck,
       },
       {
         name: "Traces",

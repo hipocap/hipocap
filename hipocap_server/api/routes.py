@@ -7,7 +7,8 @@ from fastapi import APIRouter, HTTPException, Depends, Query, Request, Header
 from fastapi import status
 from .models import (
     AnalyzeRequest, AnalyzeResponse, RBACUpdateRequest, RBACUpdateResponse,
-    AnalysisTraceResponse, ReviewUpdateRequest, ReviewUpdateResponse, TraceListResponse
+    AnalysisTraceResponse, ReviewUpdateRequest, ReviewUpdateResponse, TraceListResponse,
+    TraceStatsResponse, TraceTimeSeriesResponse, TraceTimeSeriesDataPoint
 )
 from ..pipeline import GuardPipeline, create_guard_pipeline
 from ..config import Config
@@ -494,6 +495,105 @@ async def get_review_required_traces(
         )
 
 
+@router.get("/traces/stats", response_model=TraceStatsResponse)
+async def get_trace_stats(
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
+    user_info: LMNRUserInfo = Depends(get_lmnr_user_info),
+    db: Session = Depends(get_db)
+) -> TraceStatsResponse:
+    """
+    Get statistics about traces grouped by final_decision.
+    
+    Returns counts of blocked, allowed, and review_required traces,
+    along with statistics grouped by function name.
+    """
+    try:
+        # Get stats by decision
+        stats_by_decision = AnalysisTraceRepository.get_stats_by_decision(
+            db=db,
+            user_id=user_info.id,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        # Get stats by function
+        stats_by_function = AnalysisTraceRepository.get_stats_by_function(
+            db=db,
+            user_id=user_info.id,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        return TraceStatsResponse(
+            total=stats_by_decision["total"],
+            blocked=stats_by_decision["blocked"],
+            allowed=stats_by_decision["allowed"],
+            review_required=stats_by_decision["review_required"],
+            by_function=stats_by_function
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch trace statistics: {str(e)}"
+        )
+
+
+# IMPORTANT: This route must be defined BEFORE /traces/{trace_id} to avoid route conflicts
+# FastAPI matches routes in order, so specific paths must come before parameterized paths
+@router.get("/traces/timeseries", response_model=TraceTimeSeriesResponse)
+async def get_trace_timeseries(
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
+    interval: str = Query("hour", description="Time interval: minute, hour, or day"),
+    user_info: LMNRUserInfo = Depends(get_lmnr_user_info),
+    db: Session = Depends(get_db)
+) -> TraceTimeSeriesResponse:
+    """
+    Get time-series statistics for blocked and allowed functions.
+    
+    Returns data points grouped by time intervals showing blocked and allowed counts over time.
+    """
+    try:
+        # Validate interval
+        valid_intervals = ["minute", "hour", "day"]
+        if interval not in valid_intervals:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid interval. Must be one of: {', '.join(valid_intervals)}"
+            )
+        
+        # Get time-series data
+        time_series_data = AnalysisTraceRepository.get_time_series_stats(
+            db=db,
+            user_id=user_info.id,
+            start_date=start_date,
+            end_date=end_date,
+            interval=interval
+        )
+        
+        # Convert to response model
+        items = [
+            TraceTimeSeriesDataPoint(
+                timestamp=item["timestamp"],
+                blocked=item["blocked"],
+                allowed=item["allowed"]
+            )
+            for item in time_series_data
+        ]
+        
+        return TraceTimeSeriesResponse(items=items)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch time-series statistics: {str(e)}"
+        )
+
+
 @router.get("/traces/{trace_id}", response_model=AnalysisTraceResponse)
 async def get_trace(
     trace_id: int,
@@ -630,4 +730,3 @@ async def list_traces(
             status_code=500,
             detail=f"Failed to fetch traces: {str(e)}"
         )
-

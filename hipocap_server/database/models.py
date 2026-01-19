@@ -93,3 +93,28 @@ class AnalysisTrace(Base):
     )
 
 
+class Shield(Base):
+    """Shield model for storing custom prompt-based blocking rules."""
+    
+    __tablename__ = "shields"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    shield_key = Column(String(255), unique=True, index=True, nullable=False)  # Unique identifier
+    name = Column(String(255), nullable=False)  # Human-readable name
+    description = Column(Text, nullable=True)  # Optional description
+    prompt_description = Column(Text, nullable=False)  # The prompt/description from user
+    what_to_block = Column(Text, nullable=False)  # What should be blocked
+    what_not_to_block = Column(Text, nullable=False)  # What should not be blocked
+    owner_id = Column(String(36), nullable=False, index=True)  # LMNR user UUID as string
+    
+    # Metadata
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Indexes for performance
+    __table_args__ = (
+        Index('idx_shields_owner_id', 'owner_id'),
+    )
+
+

@@ -90,6 +90,17 @@ def check_column_exists(engine, table_name: str, column_name: str) -> bool:
         return result.fetchone() is not None
 
 
+def check_table_exists(engine, table_name: str) -> bool:
+    """Check if a table exists."""
+    with engine.connect() as conn:
+        result = conn.execute(text("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_name = :table_name
+        """), {"table_name": table_name})
+        return result.fetchone() is not None
+
+
 def migrate_add_custom_prompts(engine):
     """Add custom_prompts column to governance_policies table."""
     with engine.connect() as conn:
@@ -105,6 +116,39 @@ def check_custom_prompts_needed(engine) -> bool:
     return not check_column_exists(engine, "governance_policies", "custom_prompts")
 
 
+def migrate_add_shields_table(engine):
+    """Add shields table."""
+    with engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS shields (
+                id SERIAL PRIMARY KEY,
+                shield_key VARCHAR(255) UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                prompt_description TEXT NOT NULL,
+                what_to_block TEXT NOT NULL,
+                what_not_to_block TEXT NOT NULL,
+                owner_id VARCHAR(36) NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE
+            )
+        """))
+        # Create indexes
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_shields_shield_key ON shields(shield_key)
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_shields_owner_id ON shields(owner_id)
+        """))
+        conn.commit()
+
+
+def check_shields_table_needed(engine) -> bool:
+    """Check if shields table migration is needed."""
+    return not check_table_exists(engine, "shields")
+
+
 # Register all migrations
 MIGRATIONS: List[Migration] = [
     Migration(
@@ -112,6 +156,12 @@ MIGRATIONS: List[Migration] = [
         description="Add custom_prompts column to governance_policies table",
         check_func=check_custom_prompts_needed,
         migrate_func=migrate_add_custom_prompts
+    ),
+    Migration(
+        name="add_shields_table",
+        description="Add shields table for custom blocking rules",
+        check_func=check_shields_table_needed,
+        migrate_func=migrate_add_shields_table
     ),
 ]
 
