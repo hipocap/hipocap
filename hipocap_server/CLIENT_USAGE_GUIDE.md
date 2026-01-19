@@ -83,7 +83,7 @@ client = HipocapClient(
 
 ### Getting Your API Key
 
-1. Start the Hipocap server: `python -m hipocap_v1.api.server`
+1. Start the Hipocap server: `python -m hipocap_server.api.server`
 2. Access the dashboard at `http://localhost:3000`
 3. Log in or register
 4. Navigate to "API Keys" section
@@ -840,7 +840,7 @@ result = analyze_with_monitoring(
 **Problem**: `HipocapConnectionError: Failed to connect to server`
 
 **Solutions**:
-1. Verify server is running: `python -m hipocap_v1.api.server`
+1. Verify server is running: `python -m hipocap_server.api.server`
 2. Check server URL is correct
 3. Check firewall/network settings
 4. Test with: `curl http://localhost:8000/api/v1/health`

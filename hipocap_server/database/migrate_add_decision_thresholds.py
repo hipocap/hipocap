@@ -11,7 +11,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from sqlalchemy import text
-from hipocap_v1.database.connection import engine
+from hipocap_server.database.connection import engine
 
 
 def migrate():

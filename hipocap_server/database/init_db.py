@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from hipocap_v1.database.connection import init_db, SessionLocal, engine
-from hipocap_v1.database.models import GovernancePolicy, AnalysisTrace
-from hipocap_v1.database.repositories.policy_repository import PolicyRepository
+from hipocap_server.database.connection import init_db, SessionLocal, engine
+from hipocap_server.database.models import GovernancePolicy, AnalysisTrace
+from hipocap_server.database.repositories.policy_repository import PolicyRepository
 
 
 def create_admin_user(username: str = "admin", email: str = "admin@hipocap.local", password: str = "admin123"):
