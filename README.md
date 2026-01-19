@@ -139,17 +139,36 @@ You'll be prompted to sign up and create an account. Once logged in, you can:
 - Configure security policies
 - Set up API keys for your applications
 
+### Creating Your First Policy
+
+After logging in, navigate to the **Policies** section to create your first security policy:
+
+1. **Access Policies**: Click on "Policies" in the sidebar under the "Monitoring" section, or navigate to `/project/[your-project-id]/policies`
+2. **Create Policy**: Click the "Create Policy" button to open the policy creation form
+3. **Configure Policy**: Set up your policy with:
+   - **Policy Key**: A unique identifier (e.g., `default`, `strict`, `permissive`)
+   - **Roles**: Define user roles and their permissions
+   - **Functions**: Specify which functions are allowed/blocked
+   - **Severity Rules**: Configure threat detection thresholds
+   - **Function Chaining**: Set rules for function call sequences
+   - **Output Restrictions**: Control what data can be returned
+   - **Prompts**: You can add custom prompts for LLM and Quarantine Analysis.
+
+![Policy Creation Example](./images/create_policy.png)
+
+> **Note**: You'll need to create at least one policy before using HipoCap's security analysis features. The policy key you create will be referenced in your code when calling `client.analyze()`.
+
 ### Step 5: Check Service Status
 
 ```bash
 # View all services
-docker compose -f docker-compose-local-dev.yml ps
+docker compose -f docker-compose.yml ps
 
 # View logs
-docker compose -f docker-compose-local-dev.yml logs -f
+docker compose -f docker-compose.yml logs -f
 
 # Stop services
-docker compose -f docker-compose-local-dev.yml down
+docker compose -f docker-compose.yml down
 ```
 
 ## Configuration
@@ -307,34 +326,35 @@ docker compose -f docker-compose.prod.yml up -d
 
 3. **View service logs:**
    ```bash
-   docker compose -f docker-compose-local-dev.yml logs frontend
-   docker compose -f docker-compose-local-dev.yml logs hipocap-server
+   docker compose -f docker-compose.yml logs frontend
+   docker compose -f docker-compose.yml logs hipocap-server
    ```
 
 ### Frontend shows connection errors
 
-- Ensure all services are running: `docker compose -f docker-compose-local-dev.yml ps`
+- Ensure all services are running: `docker compose -f docker-compose.yml ps`
 - Check that environment variables are set correctly
-- Verify services are healthy: `docker compose -f docker-compose-local-dev.yml ps`
+- Verify services are healthy: `docker compose -f docker-compose.yml ps`
 
 ### Database connection issues
 
 - Wait for postgres to be healthy (may take 30-60 seconds on first start)
-- Check postgres logs: `docker compose -f docker-compose-local-dev.yml logs postgres`
+- Check postgres logs: `docker compose -f docker-compose.yml logs postgres`
 - Verify `POSTGRES_PASSWORD` matches in your `.env` file
 
 ### Can't access dashboard
 
-- Ensure frontend is running: `docker compose -f docker-compose-local-dev.yml ps frontend`
-- Check frontend logs: `docker compose -f docker-compose-local-dev.yml logs frontend`
+- Ensure frontend is running: `docker compose -f docker-compose.yml ps frontend`
+- Check frontend logs: `docker compose -f docker-compose.yml logs frontend`
 - Try accessing http://localhost:3000 directly
 - Check if port 3000 is already in use
 
 ## Next Steps
 
-- **Configure Security Policies**: Set up policies in the dashboard at http://localhost:3000
-- **Integrate with Your App**: Follow the Python integration guide above
-- **View Traces**: Check the traces section in the dashboard
+- **Create Your First Policy**: Navigate to the Policies section in the dashboard (under "Monitoring" in the sidebar) at http://localhost:3000/project/[your-project-id]/policies. This is required before using security analysis features.
+- **Configure Security Policies**: Set up policies with roles, functions, severity rules, and function chaining restrictions
+- **Integrate with Your App**: Follow the Python integration guide above and reference your policy key in `client.analyze()`
+- **View Traces**: Check the traces section in the dashboard to see security analysis results
 - **Read Documentation**: See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup
 
 ## Documentation
