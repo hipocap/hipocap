@@ -155,6 +155,7 @@ After logging in, navigate to the **Policies** section to create your first secu
    - **Prompts**: You can add custom prompts for LLM and Quarantine Analysis.
 
 ![Policy Creation Example](./images/create_policy.png)
+![Policy Editing Example](./images/edit_policy.png)
 
 > **Note**: You'll need to create at least one policy before using HipoCap's security analysis features. The policy key you create will be referenced in your code when calling `client.analyze()`.
 
