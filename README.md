@@ -232,6 +232,10 @@ def process_user_request():
         return {"error": "Blocked by security policy", "reason": result.get("reason")}
     
     return user_data
+
+result = process_user_request()
+print(result)
+
 ```
 
 ### Environment Variables for Python
