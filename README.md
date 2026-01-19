@@ -19,6 +19,7 @@
     - [x] **LLM Analysis** - Deep structured analysis of function calls and results
     - [x] **Quarantine Analysis** - Two-stage infection simulation to detect sophisticated attacks
     - [x] **Threat Detection** - 14 threat categories (S1-S14) covering all major attack vectors
+    - [x] **Custom Shields** - Prompt-based blocking rules for direct prompt injection detection
 - [x] 🔐 **Governance & RBAC** - Role-based access control
     - [x] Function-level permissions and access control
     - [x] Policy-driven security rules
@@ -159,6 +160,24 @@ After logging in, navigate to the **Policies** section to create your first secu
 
 > **Note**: You'll need to create at least one policy before using HipoCap's security analysis features. The policy key you create will be referenced in your code when calling `client.analyze()`.
 
+### Creating Your First Shield
+
+**Shields** are prompt-based blocking rules designed specifically for **Direct Prompt Injection** detection. They allow you to define custom rules for what to block and what not to block based on prompt descriptions.
+
+1. **Access Shields**: Click on "Shields" in the sidebar under the "Monitoring" section, or navigate to `/project/[your-project-id]/shields`
+2. **Create Shield**: Click the "Create Shield" button to open the shield creation form
+3. **Configure Shield**: Set up your shield with:
+   - **Shield Key**: A unique identifier (e.g., `jailbreak`, `data-extraction`, `system-prompt-leak`)
+   - **Name**: A human-readable name for the shield
+   - **Description**: Optional description of the shield's purpose
+   - **Prompt Description**: Description of the type of prompts this shield should analyze
+   - **What to Block**: Detailed description of content patterns to block
+   - **What Not to Block**: Exceptions or content that should be allowed
+
+![Shield Creation Example](./images/create_shield.png)
+
+> **Note**: Shields are optimized for direct prompt injection scenarios where you need to analyze user input before it reaches your LLM. The shield key you create will be referenced in your code when calling `client.shield()`.
+
 ### Step 5: Check Service Status
 
 ```bash
@@ -237,6 +256,41 @@ result = process_user_request()
 print(result)
 
 ```
+
+### Shield Example (Direct Prompt Injection Detection)
+
+**Shields** are designed specifically for **Direct Prompt Injection** detection. They allow you to analyze any text content (user input, emails, documents, etc.) before it reaches your LLM:
+
+```python
+from hipocap import Hipocap
+
+client = Hipocap.initialize(
+    project_api_key="your-api-key-here",
+    base_url="http://localhost",      # Observability server
+    http_port=8000,
+    grpc_port=8001,
+    hipocap_base_url="http://localhost:8006",  # Security server
+    hipocap_user_id="your-user-id-here"
+)
+
+# Interactive shield analysis
+while True:
+    content = input("Enter content to analyze: ")
+    result = client.shield(
+        shield_key="jailbreak",
+        content=content
+    )
+    print(result["decision"])  # "BLOCK" or "ALLOW"
+    print(result.get("reason"))  # Optional reason if require_reason=True
+```
+
+**Shield Features:**
+- Analyze any text input (not just function calls)
+- Custom blocking rules per shield
+- Fast decision-making for real-time protection
+- Optional reasoning for blocked content
+
+> **Note**: Create your shields in the dashboard first (see "Creating Your First Shield" above). Shields are ideal for protecting against direct prompt injection attacks where malicious instructions are embedded in user input.
 
 ### Environment Variables for Python
 
