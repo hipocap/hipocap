@@ -184,6 +184,21 @@ def get_lmnr_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     if not user_id:
         return None
     
+    # Optional: Quick check for UUID format to avoid DB error with non-UUID strings
+    # if userId column in Postgres is UUID type
+    import uuid
+    is_uuid = False
+    try:
+        uuid.UUID(user_id)
+        is_uuid = True
+    except ValueError:
+        is_uuid = False
+
+    if not is_uuid:
+        # If not a UUID, it definitely won't match in a UUID column
+        # and would cause an error in Postgres
+        return None
+    
     try:
         db = get_lmnr_db()
         try:

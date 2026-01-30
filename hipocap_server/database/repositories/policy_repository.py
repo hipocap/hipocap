@@ -28,9 +28,10 @@ class PolicyRepository:
         is_default: bool = False
     ) -> GovernancePolicy:
         """Create a new governance policy."""
-        # If this is set as default, unset other defaults
+        # If this is set as default for this owner, unset other defaults for this owner
         if is_default:
             db.query(GovernancePolicy).filter(
+                GovernancePolicy.owner_id == owner_id,
                 GovernancePolicy.is_default == True
             ).update({"is_default": False})
         
@@ -71,11 +72,14 @@ class PolicyRepository:
         return policy
     
     @staticmethod
-    def get_by_key(db: Session, policy_key: str) -> Optional[GovernancePolicy]:
-        """Get policy by key."""
-        return db.query(GovernancePolicy).filter(
+    def get_by_key(db: Session, policy_key: str, owner_id: str = None) -> Optional[GovernancePolicy]:
+        """Get policy by key (optionally filtered by owner)."""
+        query = db.query(GovernancePolicy).filter(
             GovernancePolicy.policy_key == policy_key
-        ).first()
+        )
+        if owner_id:
+            query = query.filter(GovernancePolicy.owner_id == owner_id)
+        return query.first()
     
     @staticmethod
     def get_by_id(db: Session, policy_id: int) -> Optional[GovernancePolicy]:
@@ -85,12 +89,15 @@ class PolicyRepository:
         ).first()
     
     @staticmethod
-    def get_default(db: Session) -> Optional[GovernancePolicy]:
-        """Get the default policy."""
-        return db.query(GovernancePolicy).filter(
+    def get_default(db: Session, owner_id: str = None) -> Optional[GovernancePolicy]:
+        """Get the default policy (optionally filtered by owner)."""
+        query = db.query(GovernancePolicy).filter(
             GovernancePolicy.is_default == True,
             GovernancePolicy.is_active == True
-        ).first()
+        )
+        if owner_id:
+            query = query.filter(GovernancePolicy.owner_id == owner_id)
+        return query.first()
     
     @staticmethod
     def get_by_owner(db: Session, owner_id: str) -> List[GovernancePolicy]:  # Changed to UUID string
@@ -106,6 +113,51 @@ class PolicyRepository:
             GovernancePolicy.is_active == True
         ).all()
     
+    @staticmethod
+    def build_default_config() -> Dict[str, Any]:
+        """Build a default configuration dictionary with all required sections."""
+        return {
+            "roles": {
+                "admin": {
+                    "permissions": ["*"],
+                    "description": "Full system access"
+                },
+                "assistant": {
+                    "permissions": ["*"],
+                    "description": "AI Assistant with execution capabilities"
+                },
+                "user": {
+                    "permissions": ["web_search", "web_fetch", "read", "message"],
+                    "description": "Standard user permissions (No execution)"
+                }
+            },
+            "functions": {
+                "exec": {
+                    "allowed_roles": ["assistant", "admin"],
+                    "description": "Execute system commands"
+                },
+                "bash": {
+                    "allowed_roles": ["assistant", "admin"],
+                    "description": "Execute bash commands"
+                }
+            },
+            "severity_rules": {
+                "safe": {"allow_function_calls": True, "allow_output_use": True, "block": False},
+                "low": {"allow_function_calls": True, "allow_output_use": True, "block": False},
+                "medium": {"allow_function_calls": False, "allow_output_use": True, "block": False},
+                "high": {"allow_function_calls": False, "allow_output_use": False, "block": True},
+                "critical": {"allow_function_calls": False, "allow_output_use": False, "block": True}
+            },
+            "output_restrictions": {},
+            "function_chaining": {},
+            "context_rules": [],
+            "decision_thresholds": {
+                "block_threshold": 0.7,
+                "allow_threshold": 0.3,
+                "use_severity_fallback": True
+            }
+        }
+
     @staticmethod
     def _deep_merge_dict(old_dict: Dict[str, Any], new_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -333,19 +385,24 @@ class PolicyRepository:
     @staticmethod
     def to_config_dict(policy: GovernancePolicy) -> Dict[str, Any]:
         """Convert policy to config dictionary format."""
-        config = {}
-        if policy.roles:
+        # Start with a complete default structure
+        config = PolicyRepository.build_default_config()
+        
+        # Override with policy values if they exist/are not empty
+        if policy.roles and len(policy.roles) > 0:
             config["roles"] = policy.roles
-        if policy.functions:
+        if policy.functions and len(policy.functions) > 0:
             config["functions"] = policy.functions
-        if policy.severity_rules:
+        if policy.severity_rules and len(policy.severity_rules) > 0:
             config["severity_rules"] = policy.severity_rules
-        if policy.output_restrictions:
+        if policy.output_restrictions and len(policy.output_restrictions) > 0:
             config["output_restrictions"] = policy.output_restrictions
-        if policy.function_chaining:
+        if policy.function_chaining and len(policy.function_chaining) > 0:
             config["function_chaining"] = policy.function_chaining
-        if policy.context_rules:
+        if policy.context_rules and len(policy.context_rules) > 0:
             config["context_rules"] = policy.context_rules
+        if policy.decision_thresholds and len(policy.decision_thresholds) > 0:
+            config["decision_thresholds"] = policy.decision_thresholds
         
         return config
 

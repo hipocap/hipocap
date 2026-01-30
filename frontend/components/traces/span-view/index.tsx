@@ -62,11 +62,11 @@ const SpanViewTabs = ({
   const hasInput = useMemo(() => !isNullOrUndefined(span.input), [span.input]);
   const hasOutput = useMemo(() => !isNullOrUndefined(span.output), [span.output]);
 
-  // Determine the default tab - prioritize input, then output, then hipocap, then attributes
+  // Determine the default tab - prioritize hipocap, then input, then output, then attributes
   const defaultTab = useMemo(() => {
+    if (hasHipocap) return "hipocap-analysis";
     if (hasInput) return "span-input";
     if (hasOutput) return "span-output";
-    if (hasHipocap) return "hipocap-analysis";
     return "attributes";
   }, [hasInput, hasOutput, hasHipocap]);
 
@@ -76,6 +76,11 @@ const SpanViewTabs = ({
         {/* Tabs Navigation - Horizontal Layout */}
         <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/20">
           <TabsList className="border-none text-xs h-8 bg-transparent">
+            {hasHipocap && (
+              <TabsTrigger value="hipocap-analysis" className="text-xs px-3 h-7">
+                Hipocap Analysis
+              </TabsTrigger>
+            )}
             {hasInput && (
               <TabsTrigger value="span-input" className="text-xs px-3 h-7">
                 Span Input
@@ -84,11 +89,6 @@ const SpanViewTabs = ({
             {hasOutput && (
               <TabsTrigger value="span-output" className="text-xs px-3 h-7">
                 Span Output
-              </TabsTrigger>
-            )}
-            {hasHipocap && (
-              <TabsTrigger value="hipocap-analysis" className="text-xs px-3 h-7">
-                Hipocap Analysis
               </TabsTrigger>
             )}
             <TabsTrigger value="attributes" className="text-xs px-3 h-7">
@@ -100,9 +100,16 @@ const SpanViewTabs = ({
           </TabsList>
           <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
         </div>
-        
+
         {/* Content Area */}
         <div className="flex-1 min-h-0 overflow-hidden">
+          {hasHipocap && (
+            <TabsContent value="hipocap-analysis" className="w-full h-full overflow-y-auto m-0">
+              <div className="p-4">
+                <HipocapAnalysisCard span={span} />
+              </div>
+            </TabsContent>
+          )}
           {hasInput && (
             <TabsContent value="span-input" className="w-full h-full m-0">
               <SpanContent span={span} type="input" />
@@ -111,13 +118,6 @@ const SpanViewTabs = ({
           {hasOutput && (
             <TabsContent value="span-output" className="w-full h-full m-0">
               <SpanContent span={span} type="output" />
-            </TabsContent>
-          )}
-          {hasHipocap && (
-            <TabsContent value="hipocap-analysis" className="w-full h-full overflow-y-auto m-0">
-              <div className="p-4">
-                <HipocapAnalysisCard span={span} />
-              </div>
             </TabsContent>
           )}
           <TabsContent value="attributes" className="w-full h-full m-0">
@@ -149,7 +149,7 @@ const SpanViewTabs = ({
 export function SpanView({ spanId, traceId }: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(false);
-  
+
   // Check if this is a virtual Hipocap event span ID or function attempt span ID and redirect to parent
   const actualSpanId = useMemo(() => {
     // If spanId looks like a virtual span ID (contains -hipocap-event- or -function-attempt-), extract parent
@@ -161,7 +161,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     }
     return spanId;
   }, [spanId]);
-  
+
   const {
     data: span,
     isLoading,

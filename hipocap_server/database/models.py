@@ -13,7 +13,7 @@ class GovernancePolicy(Base):
     __tablename__ = "governance_policies"
     
     id = Column(Integer, primary_key=True, index=True)
-    policy_key = Column(String(255), unique=True, index=True, nullable=False)  # Unique identifier
+    policy_key = Column(String(255), index=True, nullable=False)  # Identifier (unique per owner)
     name = Column(String(255), nullable=False)  # Human-readable name
     description = Column(Text, nullable=True)
     owner_id = Column(String(36), nullable=False, index=True)  # LMNR user UUID as string
@@ -34,9 +34,10 @@ class GovernancePolicy(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Index on owner_id for performance
+    # Indexes and constraints
     __table_args__ = (
         Index('idx_governance_policies_owner_id', 'owner_id'),
+        Index('uix_policy_owner', 'policy_key', 'owner_id', unique=True),
     )
 
 

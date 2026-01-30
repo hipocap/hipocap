@@ -21,12 +21,12 @@ async def create_policy(
     db: Session = Depends(get_db)
 ) -> PolicyResponse:
     """Create a new governance policy."""
-    # Check if policy_key already exists
-    existing = PolicyRepository.get_by_key(db, policy_data.policy_key)
+    # Check if policy_key already exists for this user
+    existing = PolicyRepository.get_by_key(db, policy_data.policy_key, owner_id=user_info.id)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Policy with key '{policy_data.policy_key}' already exists"
+            detail=f"Policy with key '{policy_data.policy_key}' already exists for your account"
         )
     
     # Normalize severity_rules: if None or empty dict, pass None to repository so defaults are applied
@@ -88,8 +88,8 @@ async def list_policies(
     
     # Auto-create default policy if user has no policies and no default policy exists
     if not policies:
-        # Check if default policy exists by key (might exist but not be set as default)
-        existing_default = PolicyRepository.get_by_key(db, "default")
+        # Check if default policy exists for this user
+        existing_default = PolicyRepository.get_by_key(db, "default", owner_id=user_info.id)
         if not existing_default:
             # Create default policy for this user
             try:
@@ -133,7 +133,7 @@ async def get_policy(
     db: Session = Depends(get_db)
 ) -> PolicyResponse:
     """Get a specific policy by key."""
-    policy = PolicyRepository.get_by_key(db, policy_key)
+    policy = PolicyRepository.get_by_key(db, policy_key, owner_id=user_info.id)
     if not policy:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -222,11 +222,11 @@ async def update_policy(
     
     warnings = []
     
-    # Check if trying to set as default when another default exists
+    # Check if trying to set as default when another default exists for this user
     if policy_data.is_default and not policy.is_default:
-        existing_default = PolicyRepository.get_default(db)
+        existing_default = PolicyRepository.get_default(db, owner_id=user_info.id)
         if existing_default and existing_default.id != policy_id:
-            warnings.append(f"Policy '{existing_default.policy_key}' was previously set as default and has been unset.")
+            warnings.append(f"Policy '{existing_default.policy_key}' was previously set as your account's default and has been unset.")
     
     updated_policy, changes = PolicyRepository.update(
         db=db,
@@ -292,7 +292,7 @@ async def patch_policy_by_key(
     This is a convenience endpoint that allows updating by policy_key instead of ID.
     Supports the same deep merging behavior as PUT /{policy_id}.
     """
-    policy = PolicyRepository.get_by_key(db, policy_key)
+    policy = PolicyRepository.get_by_key(db, policy_key, owner_id=user_info.id)
     if not policy:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -330,11 +330,11 @@ async def patch_policy_by_key(
     
     warnings = []
     
-    # Check if trying to set as default when another default exists
+    # Check if trying to set as default when another default exists for this user
     if policy_data.is_default and not policy.is_default:
-        existing_default = PolicyRepository.get_default(db)
+        existing_default = PolicyRepository.get_default(db, owner_id=user_info.id)
         if existing_default and existing_default.id != policy.id:
-            warnings.append(f"Policy '{existing_default.policy_key}' was previously set as default and has been unset.")
+            warnings.append(f"Policy '{existing_default.policy_key}' was previously set as your account's default and has been unset.")
     
     updated_policy, changes = PolicyRepository.update(
         db=db,

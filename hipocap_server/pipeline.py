@@ -419,7 +419,6 @@ class GuardPipeline:
         policy = {
             "function_name": function_name,
             "description": func_config.get("description", ""),
-            "allowed_roles": func_config.get("allowed_roles", []),
             "output_restrictions": func_config.get("output_restrictions", {}),
             "function_chaining": function_chaining or {},
             "hitl_rules": self.config.get_hitl_rules(function_name),
@@ -548,7 +547,6 @@ class GuardPipeline:
         policy = {
             "function_name": function_name,
             "description": func_config.get("description", ""),
-            "allowed_roles": func_config.get("allowed_roles", []),
             "output_restrictions": func_config.get("output_restrictions", {}),
             "function_chaining": function_chaining or {},
             "hitl_rules": self.config.get_hitl_rules(function_name),
@@ -563,6 +561,7 @@ class GuardPipeline:
         function_result: Any,
         function_args: Optional[Any] = None,
         user_query: Optional[str] = None,
+        user_role: Optional[str] = None,
         quick_mode: bool = False
     ) -> Dict[str, Any]:
         """
@@ -598,6 +597,7 @@ class GuardPipeline:
                 function_result=function_result,
                 function_args=function_args,
                 user_query=user_query,
+                user_role=user_role,
                 quick_mode=quick_mode,
                 function_policy=function_policy
             )
@@ -633,7 +633,8 @@ class GuardPipeline:
                         }
                     },
                     temperature=0.0,  # Deterministic
-                    max_tokens=max_tokens
+                    max_tokens=max_tokens,
+                    timeout=25.0
                 )
                 
                 # Extract structured analysis from JSON response
@@ -1720,6 +1721,7 @@ class GuardPipeline:
                     function_result,
                     function_args,
                     user_query,
+                    user_role=user_role,
                     quick_mode=quick_mode
                 )
             else:

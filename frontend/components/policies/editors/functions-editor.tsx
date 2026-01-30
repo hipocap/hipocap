@@ -65,7 +65,7 @@ export default function FunctionsEditor({
 
   // Local state for functions - syncs with props but used for auto-save
   const [localFunctions, setLocalFunctions] = useState<Record<string, any>>(functions);
-  
+
   // Sync local state with props when props change (e.g., after deletion)
   useEffect(() => {
     setLocalFunctions(functions);
@@ -77,7 +77,6 @@ export default function FunctionsEditor({
 
   const [formData, setFormData] = useState({
     name: "",
-    allowed_roles: [] as string[],
     output_restrictions: {
       cannot_trigger_functions: false,
       max_severity_for_use: "" as string,
@@ -91,7 +90,7 @@ export default function FunctionsEditor({
   // Use refs to ensure we always use the latest values in the save callback
   const policyIdRef = useRef(policy.id);
   const projectIdRef = useRef(projectId as string);
-  
+
   useEffect(() => {
     policyIdRef.current = policy.id;
     projectIdRef.current = projectId as string;
@@ -128,7 +127,6 @@ export default function FunctionsEditor({
   const handleAddFunction = () => {
     setFormData({
       name: "",
-      allowed_roles: [],
       output_restrictions: {
         cannot_trigger_functions: false,
         max_severity_for_use: "",
@@ -146,7 +144,6 @@ export default function FunctionsEditor({
     const func = localFunctions[functionName];
     setFormData({
       name: functionName,
-      allowed_roles: func.allowed_roles || [],
       output_restrictions: func.output_restrictions || {
         cannot_trigger_functions: false,
         max_severity_for_use: "",
@@ -199,7 +196,6 @@ export default function FunctionsEditor({
 
     const updatedFunctions = { ...localFunctions };
     const functionConfig: any = {
-      allowed_roles: formData.allowed_roles,
       description: formData.description || undefined,
     };
 
@@ -240,14 +236,6 @@ export default function FunctionsEditor({
     setEditingFunction(null);
   };
 
-  const toggleRole = (role: string) => {
-    setFormData((prev) => {
-      const allowed_roles = prev.allowed_roles.includes(role)
-        ? prev.allowed_roles.filter((r) => r !== role)
-        : [...prev.allowed_roles, role];
-      return { ...prev, allowed_roles };
-    });
-  };
 
   const toggleExpanded = (functionName: string) => {
     setExpandedFunctions((prev) => {
@@ -338,18 +326,6 @@ export default function FunctionsEditor({
               <Collapsible open={expandedFunctions.has(functionName)}>
                 <CollapsibleContent>
                   <CardContent className="space-y-4">
-                    {func.allowed_roles && func.allowed_roles.length > 0 && (
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Allowed Roles</Label>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {func.allowed_roles.map((role: string) => (
-                            <Badge key={role} variant="secondary">
-                              {role}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                     {func.output_restrictions && (
                       <div>
                         <Label className="text-xs text-muted-foreground">Output Restrictions</Label>
@@ -421,30 +397,6 @@ export default function FunctionsEditor({
                 placeholder="Describe what this function does..."
                 rows={2}
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Allowed Roles</Label>
-              <div className="border rounded-md p-4 space-y-2 max-h-40 overflow-y-auto">
-                {availableRoles.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No roles defined. Create roles first.</p>
-                ) : (
-                  availableRoles.map((role) => (
-                    <div key={role} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`role-${role}`}
-                        checked={formData.allowed_roles.includes(role)}
-                        onCheckedChange={() => toggleRole(role)}
-                      />
-                      <Label
-                        htmlFor={`role-${role}`}
-                        className="text-sm font-normal cursor-pointer flex-1"
-                      >
-                        {role}
-                      </Label>
-                    </div>
-                  ))
-                )}
-              </div>
             </div>
             <div className="space-y-4 border rounded-md p-4">
               <Label className="text-base font-semibold">Output Restrictions</Label>

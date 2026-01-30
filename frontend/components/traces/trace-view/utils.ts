@@ -179,11 +179,11 @@ export const onRealtimeUpdateSpans =
         const newTrace = { ...trace };
 
         newTrace.startTime =
-        new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
-          ? newTrace.startTime
-          : newSpan.startTime;
+          new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
+            ? newTrace.startTime
+            : newSpan.startTime;
         newTrace.endTime =
-        new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
+          new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
         newTrace.totalTokens += totalTokens;
         newTrace.inputTokens += inputTokens;
         newTrace.outputTokens += outputTokens;
@@ -197,7 +197,7 @@ export const onRealtimeUpdateSpans =
         const newSpans = [...spans];
         const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
         if (index !== -1) {
-        // Always replace existing span, regardless of pending status
+          // Always replace existing span, regardless of pending status
           newSpans[index] = {
             ...newSpan,
             totalTokens,
@@ -247,8 +247,8 @@ export const findSpanToSelect = (
 ): TraceViewSpan | undefined => {
   // Filter out virtual spans for selection (only use real spans)
   const realSpans = spans.filter(
-    (span) => 
-      span.attributes?.["hipocap.is_event_span"] !== true && 
+    (span) =>
+      span.attributes?.["hipocap.is_event_span"] !== true &&
       span.attributes?.["hipocap.is_function_attempt"] !== true
   );
 
@@ -262,13 +262,13 @@ export const findSpanToSelect = (
       const parentSpan = realSpans.find((span) => span.spanId === parentSpanId);
       if (parentSpan) return parentSpan;
     }
-    
+
     // Check if this is a virtual span in the spans array
     const spanFromUrl = spans.find((span) => span.spanId === urlSpanId);
     if (spanFromUrl) {
       // If it's a virtual span, find its parent instead
-      const isVirtualSpan = spanFromUrl.attributes?.["hipocap.is_event_span"] === true || 
-                           spanFromUrl.attributes?.["hipocap.is_function_attempt"] === true;
+      const isVirtualSpan = spanFromUrl.attributes?.["hipocap.is_event_span"] === true ||
+        spanFromUrl.attributes?.["hipocap.is_function_attempt"] === true;
       if (isVirtualSpan && spanFromUrl.parentSpanId) {
         const parentSpan = realSpans.find((span) => span.spanId === spanFromUrl.parentSpanId);
         if (parentSpan) return parentSpan;
@@ -278,7 +278,7 @@ export const findSpanToSelect = (
         return spanFromUrl;
       }
     }
-    
+
     // Try to find in real spans
     const realSpanFromUrl = realSpans.find((span) => span.spanId === urlSpanId);
     if (realSpanFromUrl) return realSpanFromUrl;
@@ -329,26 +329,30 @@ export const getLLMMetrics = (span: TraceViewSpan) => {
 };
 
 /**
- * Check if a span has Hipocap analysis data
+ * Check if a span has Hipocap analysis data (including shield operations)
  */
 export const hasHipocapAnalysis = (span: { attributes?: Record<string, any> }): boolean => {
   if (!span?.attributes) return false;
-  
-  // Check for any hipocap analysis attributes
+
+  // Check for analyze operation attributes
   const functionName = get(span.attributes, "lmnr.association.properties.metadata.hipocap.function_name");
   const inputAnalysis = get(span.attributes, "lmnr.association.properties.metadata.hipocap.input_analysis");
   const llmAnalysis = get(span.attributes, "lmnr.association.properties.metadata.hipocap.llm_analysis");
   const finalDecision = get(span.attributes, "lmnr.association.properties.metadata.hipocap.final_decision");
-  
-  return !!(functionName || inputAnalysis || llmAnalysis || finalDecision);
+
+  // Check for shield operation attributes
+  const shieldDecision = get(span.attributes, "lmnr.association.properties.metadata.hipocap.shield_decision");
+  const shieldKey = get(span.attributes, "lmnr.association.properties.metadata.hipocap.shield_key");
+
+  return !!(functionName || inputAnalysis || llmAnalysis || finalDecision || shieldDecision || shieldKey);
 };
 
 /**
- * Extract and parse Hipocap analysis data from span attributes
+ * Extract and parse Hipocap analysis data from span attributes (including shield operations)
  */
 export const extractHipocapAnalysis = (span: { attributes?: Record<string, any> }) => {
   if (!span?.attributes) return null;
-  
+
   const tryParseJson = (value: any): any => {
     if (!value) return null;
     if (typeof value === "string") {
@@ -360,7 +364,8 @@ export const extractHipocapAnalysis = (span: { attributes?: Record<string, any> 
     }
     return value;
   };
-  
+
+  // Extract analyze operation attributes
   const functionName = get(span.attributes, "lmnr.association.properties.metadata.hipocap.function_name");
   const inputAnalysisStr = get(span.attributes, "lmnr.association.properties.metadata.hipocap.input_analysis");
   const llmAnalysisStr = get(span.attributes, "lmnr.association.properties.metadata.hipocap.llm_analysis");
@@ -371,13 +376,37 @@ export const extractHipocapAnalysis = (span: { attributes?: Record<string, any> 
   const score = get(span.attributes, "lmnr.association.properties.metadata.hipocap.score");
   const blockedAt = get(span.attributes, "lmnr.association.properties.metadata.hipocap.blocked_at");
   const severity = get(span.attributes, "lmnr.association.properties.metadata.hipocap.severity");
-  
+
+  // Extract shield operation attributes
+  const shieldDecision = get(span.attributes, "lmnr.association.properties.metadata.hipocap.shield_decision");
+  const shieldReason = get(span.attributes, "lmnr.association.properties.metadata.hipocap.shield_reason");
+  const shieldKey = get(span.attributes, "lmnr.association.properties.metadata.hipocap.shield_key");
+
   const inputAnalysis = tryParseJson(inputAnalysisStr);
   const llmAnalysis = tryParseJson(llmAnalysisStr);
-  
+
   // Use final_score if available, otherwise fall back to score
   const riskScore = finalScore !== undefined ? finalScore : (score !== undefined ? score : null);
-  
+
+  // For shield operations, map shield attributes to the standard format
+  const isShieldOperation = !!(shieldDecision || shieldKey);
+
+  if (isShieldOperation) {
+    return {
+      functionName: shieldKey || "Shield Check",
+      finalDecision: shieldDecision === "ALLOW" ? "ALLOWED" : shieldDecision === "BLOCK" ? "BLOCKED" : shieldDecision,
+      safeToUse: shieldDecision === "ALLOW",
+      reason: shieldReason || reason,
+      finalScore: null, // Shields don't have scores
+      blockedAt: shieldDecision === "BLOCK" ? "shield" : null,
+      severity: shieldDecision === "BLOCK" ? "high" : "safe",
+      inputAnalysis: null,
+      llmAnalysis: null,
+      isShield: true,
+      shieldKey,
+    };
+  }
+
   return {
     functionName,
     finalDecision,
@@ -388,6 +417,7 @@ export const extractHipocapAnalysis = (span: { attributes?: Record<string, any> 
     severity,
     inputAnalysis,
     llmAnalysis,
+    isShield: false,
   };
 };
 
@@ -397,7 +427,7 @@ export const extractHipocapAnalysis = (span: { attributes?: Record<string, any> 
  */
 export const getHipocapAnalysisDuration = (span: { attributes?: Record<string, any>; startTime: string; endTime: string }): string | null => {
   if (!span?.attributes) return null;
-  
+
   const tryParseJson = (value: any): any => {
     if (!value) return null;
     if (typeof value === "string") {
@@ -409,15 +439,15 @@ export const getHipocapAnalysisDuration = (span: { attributes?: Record<string, a
     }
     return value;
   };
-  
+
   const inputAnalysisStr = get(span.attributes, "lmnr.association.properties.metadata.hipocap.input_analysis");
   const llmAnalysisStr = get(span.attributes, "lmnr.association.properties.metadata.hipocap.llm_analysis");
-  
+
   const inputAnalysis = tryParseJson(inputAnalysisStr);
   const llmAnalysis = tryParseJson(llmAnalysisStr);
-  
+
   const timestamps: number[] = [];
-  
+
   // Extract timestamps from analysis data
   if (inputAnalysis?.timestamp) {
     timestamps.push(Number(inputAnalysis.timestamp));
@@ -425,19 +455,19 @@ export const getHipocapAnalysisDuration = (span: { attributes?: Record<string, a
   if (llmAnalysis?.timestamp) {
     timestamps.push(Number(llmAnalysis.timestamp));
   }
-  
+
   // If we have at least one timestamp, calculate duration
   if (timestamps.length > 0) {
     const minTimestamp = Math.min(...timestamps);
     const maxTimestamp = Math.max(...timestamps);
     const durationSeconds = maxTimestamp - minTimestamp;
-    
+
     // Only return custom duration if it's meaningful (greater than 0.01 seconds)
     // Otherwise fall back to regular span duration
     if (durationSeconds > 0.01) {
       return `${durationSeconds.toFixed(2)}s`;
     }
   }
-  
+
   return null;
 };

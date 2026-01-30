@@ -34,84 +34,14 @@ def create_default_policy(owner_id: str):
     """Create a default governance policy."""
     db = SessionLocal()
     try:
-        # Check if default policy exists
-        existing = PolicyRepository.get_default(db)
+        # Check if default policy exists for THIS owner
+        existing = PolicyRepository.get_default(db, owner_id=owner_id)
         if existing:
-            print("Default policy already exists")
+            print(f"Default policy already exists for user {owner_id}")
             return existing
         
         # Create default policy with basic structure
-        default_config = {
-            "roles": {
-                "admin": {
-                    "permissions": ["*"],
-                    "description": "Full access to all functions"
-                },
-                "user": {
-                    "permissions": ["get_mail", "get_weather", "search_web"],
-                    "description": "Standard user permissions"
-                },
-                "guest": {
-                    "permissions": [],
-                    "description": "No permissions"
-                }
-            },
-            "functions": {
-                "get_mail": {
-                    "allowed_roles": ["admin", "user"],
-                    "output_restrictions": {
-                        "cannot_trigger_functions": True,
-                        "max_severity_for_use": "low"
-                    }
-                },
-                "get_weather": {
-                    "allowed_roles": ["admin", "user"],
-                    "output_restrictions": {
-                        "cannot_trigger_functions": True,
-                        "max_severity_for_use": "low"
-                    }
-                },
-                "search_web": {
-                    "allowed_roles": ["admin", "user"],
-                    "output_restrictions": {
-                        "cannot_trigger_functions": True,
-                        "max_severity_for_use": "medium"
-                    }
-                }
-            },
-            "severity_rules": {
-                "safe": {
-                    "allow_function_calls": True,
-                    "allow_output_use": True,
-                    "block": False
-                },
-                "low": {
-                    "allow_function_calls": True,
-                    "allow_output_use": True,
-                    "block": False
-                },
-                "medium": {
-                    "allow_function_calls": False,
-                    "allow_output_use": True,
-                    "block": False
-                },
-                "high": {
-                    "allow_function_calls": False,
-                    "allow_output_use": False,
-                    "block": True
-                },
-                "critical": {
-                    "allow_function_calls": False,
-                    "allow_output_use": False,
-                    "block": True
-                }
-            },
-            "output_restrictions": {},
-            "function_chaining": {},
-            "context_rules": [],
-            "decision_thresholds": {},
-            "custom_prompts": {}
-        }
+        default_config = PolicyRepository.build_default_config()
         
         policy = PolicyRepository.create(
             db=db,

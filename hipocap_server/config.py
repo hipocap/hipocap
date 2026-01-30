@@ -97,12 +97,6 @@ class Config:
         if function_name in permissions:
             return True
         
-        if function_name in self.config.get("functions", {}):
-            func_config = self.config["functions"][function_name]
-            allowed_roles = func_config.get("allowed_roles", [])
-            if role in allowed_roles:
-                return True
-        
         return False
     
     def get_severity_rule(self, severity: str) -> Dict[str, Any]:
